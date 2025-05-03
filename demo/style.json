@@ -1,0 +1,45 @@
+{
+    "version": 8,
+    "name": "Rusic Tiles Demo Style",
+    "sources": {
+       "rustic": {
+            "type": "vector",
+            "url": "http://localhost:3000/natural_areas"
+        }
+    },
+    "layers": [
+        {
+            "id": "natural-water",
+            "source": "rustic",
+            "source-layer": "natural_areas",
+            "type": "fill",
+            "filter": [
+                "==",
+                ["get", "natural"], "water"
+            ],
+            "paint": {
+                "fill-color": "blue"
+            }
+        },
+        {
+            "id": "natural-land",
+            "source": "rustic",
+            "source-layer": "natural_areas",
+            "type": "fill",
+            "filter": [
+                "in", ["get", "natural"], ["literal", ["wood", "scrub", "wetland", "grassland", "bare_rock", "sand"]]
+            ],
+            "paint": {
+                "fill-color": [
+                    "match", ["get", "natural"],
+                    "scrub", "yellow",
+                    "wetland", "teal",
+                    "grassland", "lime",
+                    "bare_rock", "grey",
+                    "sand", "tan",
+                    "green"
+                ]
+            }
+        }
+    ]
+}
