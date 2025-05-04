@@ -5,7 +5,7 @@ set -e # Exit if any command fails
 
 PLANET_URL="https://download.geofabrik.de/north-america/us/pennsylvania-latest.osm.pbf"
 # "https://planet.openstreetmap.org/pbf/planet-latest.osm.pbf"
-SCRATCH_DIR="$(pwd)/scratch"
+SCRATCH_DIR="/var/tmp/rustic"
 PLANET_FILE="$SCRATCH_DIR/planet-latest.osm.pbf"
 SQL_FUNCTIONS_FILE="functions.sql"
 LUA_STYLE_FILE="osm2pgsql_style_config.lua"
@@ -16,10 +16,7 @@ TABLE_PREFIX="planet_osm"
 
 # Create helper directory
 if [ ! -d "$SCRATCH_DIR" ]; then
-    echo "Directory $SCRATCH_DIR does not exist. Creating it..."
     mkdir -p "$SCRATCH_DIR"
-else
-    echo "Directory $SCRATCH_DIR exists."
 fi
 
 # Create linux user matching PG role: needed for pgsql peer authentication 
@@ -128,16 +125,17 @@ else
     sudo -u postgres createdb --encoding=UTF8 --owner="$DB_USER" "$DB_NAME"
     sudo -u postgres psql "$DB_NAME" --command='CREATE EXTENSION postgis;'
     sudo -u postgres psql "$DB_NAME" --command='CREATE EXTENSION hstore;'
-
-    # Generate COLUMN_NAMES by quoting each line in keys.txt and joining with commas
-    COLUMN_NAMES=$(sed 's/.*/"&"/' keys.txt | paste -sd, -)
-    # Read the SQL file content into a variable
-    SQL_CONTENT=$(<"$SQL_FUNCTIONS_FILE")
-    # Replace the placeholder with actual column names
-    SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES\}\}/$COLUMN_NAMES}
-
-    sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$SQL_CONTENT"
 fi
+
+# Generate COLUMN_NAMES by quoting each line in keys.txt and joining with commas
+COLUMN_NAMES=$(sed 's/.*/"&"/' keys.txt | paste -sd, -)
+# Read the SQL file content into a variable
+SQL_CONTENT=$(<"$SQL_FUNCTIONS_FILE")
+# Replace the placeholder with actual column names
+SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES\}\}/$COLUMN_NAMES}
+
+# reinstall functions every time in case something changed
+sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$SQL_CONTENT"
 
 # Load data into database
 TABLES_EXISTING=$(sudo -u postgres psql -d "$DB_NAME" -tAc \

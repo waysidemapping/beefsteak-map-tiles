@@ -61,6 +61,17 @@ BEGIN
       ) as tile WHERE geom IS NOT NULL
     ), '') ||
     COALESCE((
+      SELECT ST_AsMVT(tile, 'route', 4096, 'geom') FROM (
+        SELECT {{COLUMN_NAMES}}, "geom_type", ST_AsMVTGeom(geom, ST_TileEnvelope(z, x, y), 4096, 64, true) AS geom
+        FROM "route"
+        WHERE geom && ST_TileEnvelope(z, x, y)
+          AND (
+            (z >= 4 AND ("route" IN ('ferry')))
+            OR z >= 13
+          )
+      ) as tile WHERE geom IS NOT NULL
+    ), '') ||
+    COALESCE((
       SELECT ST_AsMVT(tile, 'waterway', 4096, 'geom') FROM (
         SELECT {{COLUMN_NAMES}}, "geom_type", ST_AsMVTGeom(geom, ST_TileEnvelope(z, x, y), 4096, 64, true) AS geom
         FROM "waterway"
@@ -94,6 +105,9 @@ DO $do$ BEGIN
             },
             {
               "id": "railway"
+            },
+            {
+              "id": "route"
             },
             {
               "id": "waterway"

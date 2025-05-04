@@ -42,7 +42,7 @@
                     "scrub", "#c3ffb2",
                     "wetland", "#b2ffda",
                     "grassland", "#dfffb2",
-                    "bare_rock", "WhiteSmoke",
+                    "bare_rock", "#dbdbdb",
                     "sand", "#fffbb2",
                     "#b2ffba"
                 ]
@@ -124,6 +124,16 @@
             "type": "line",
             "paint": {
                 "line-color": "Red"
+            }
+        },
+        {
+            "id": "route",
+            "source": "rustic",
+            "source-layer": "route",
+            "type": "line",
+            "paint": {
+                "line-color": "DarkSlateGray",
+                "line-dasharray": [4, 4]
             }
         },
         {

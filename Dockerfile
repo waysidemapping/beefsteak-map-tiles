@@ -11,19 +11,8 @@ RUN apt update && \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up the working directory in the container
+# Files must be copied here at runtime using --mount 
 WORKDIR /usr/src/app
 
-# Create the 'scratch' directory under '/usr/src/app'
-RUN mkdir /usr/src/app/scratch
-
-# Create the volume for the planet file (this is for mounting)
-VOLUME ["/usr/src/app/scratch"]
-
-COPY . .
-
-# Make the install.sh script executable
-RUN chmod +x install.sh
-
-# Set default command to bash (so the container doesn't exit immediately)
-CMD ["/usr/src/app/install.sh"]
+# Always run start.sh when starting the container
+CMD ["/usr/src/app/start.sh"]
