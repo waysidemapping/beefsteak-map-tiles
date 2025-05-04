@@ -1,0 +1,70 @@
+# Connection keep alive timeout [default: 75]
+keep_alive: 75
+
+# The socket address to bind [default: 0.0.0.0:3000]
+listen_addresses: '0.0.0.0:3000'
+
+# Set TileJSON URL path prefix. This overrides the default of respecting the X-Rewrite-URL header.
+# Only modifies the JSON (TileJSON) returned, martins' API-URLs remain unchanged. If you need to rewrite URLs, please use a reverse proxy.
+# Must begin with a `/`.
+# Examples: `/`, `/tiles`
+base_path: /
+
+# Number of web server workers
+worker_processes: 8
+
+# Amount of memory (in MB) to use for caching tiles [default: 512, 0 to disable]
+cache_size_mb: 1024
+
+# If the client accepts multiple compression formats, and the tile source is not pre-compressed, which compression should be used. `gzip` is faster, but `brotli` is smaller, and may be faster with caching.  Default could be different depending on Martin version.
+preferred_encoding: gzip
+
+# Enable or disable Martin web UI. At the moment, only allows `enable-for-all` which enables the web UI for all connections. This may be undesirable in a production environment. [default: disable]
+web_ui: disable
+
+# Database configuration. This can also be a list of PG configs.
+postgres:
+  # Database connection string. You can use env vars too, for example:
+  #   $DATABASE_URL
+  #   ${DATABASE_URL:-postgresql://postgres@localhost/db}
+  connection_string: "postgresql://osmuser@localhost/osm?host=/var/run/postgresql&sslmode=disable"
+
+  #  If a spatial table has SRID 0, then this SRID will be used as a fallback
+  default_srid: 3857
+
+  # Maximum Postgres connections pool size [default: 20]
+  pool_size: 20
+
+  # Limit the number of geo features per tile.
+  #
+  # If the source table has more features than set here, they will not be included in the tile and the result will look "cut off"/incomplete.
+  # This feature allows to put a maximum latency bound on tiles with extreme amount of detail at the cost of not returning all data.
+  # It is sensible to set this limit if you have user generated/untrusted geodata, e.g. a lot of data points at [Null Island](https://en.wikipedia.org/wiki/Null_Island).
+  max_feature_count: null # either a positive integer, or null=unlimited (default)
+
+  # Control the automatic generation of bounds for spatial tables [default: quick]
+  # 'calc' - compute table geometry bounds on startup.
+  # 'quick' - same as 'calc', but the calculation will be aborted if it takes more than 5 seconds.
+  # 'skip' - do not compute table geometry bounds on startup.
+  auto_bounds: skip
+
+  # Associative arrays of function sources
+  functions:
+    rustic:
+      # Schema name (required)
+      schema: public
+
+      # Function name (required)
+      function: function_get_rustic_tile
+
+      # An integer specifying the minimum zoom level
+      minzoom: 0
+
+      # An integer specifying the maximum zoom level. MUST be >= minzoom
+      maxzoom: 26
+
+      # The maximum extent of available map tiles. Bounds MUST define an area
+      # covered by all zoom levels. The bounds are represented in WGS:84
+      # latitude and longitude values, in the order left, bottom, right, top.
+      # Values may be integers or floating point numbers.
+      bounds: [ -180.0, -90.0, 180.0, 90.0 ]

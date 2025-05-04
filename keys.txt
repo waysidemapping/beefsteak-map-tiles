@@ -24,6 +24,7 @@ ele
 electrified
 embankment
 emergency
+expressway
 fee
 fishing
 foot
@@ -47,6 +48,7 @@ landuse
 lanes
 layer
 leisure
+level
 lit
 man_made
 maxspeed
@@ -59,8 +61,10 @@ natural
 office
 oneway
 operator
+parking
 portage
 power
+protected_area
 public_transport
 railway
 ref
@@ -78,6 +82,7 @@ toll
 tourism
 trapping
 tunnel
+usage
 utility
 water
 waterway

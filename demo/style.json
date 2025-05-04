@@ -4,27 +4,34 @@
     "sources": {
        "rustic": {
             "type": "vector",
-            "url": "http://localhost:3000/natural_areas"
+            "url": "http://localhost:3000/rustic"
         }
     },
     "layers": [
         {
+            "id": "background",
+            "type": "background",
+            "paint": {
+                "background-color": "White"
+            }
+        },
+        {
             "id": "natural-water",
             "source": "rustic",
-            "source-layer": "natural_areas",
+            "source-layer": "natural",
             "type": "fill",
             "filter": [
                 "==",
                 ["get", "natural"], "water"
             ],
             "paint": {
-                "fill-color": "blue"
+                "fill-color": "CornflowerBlue"
             }
         },
         {
             "id": "natural-land",
             "source": "rustic",
-            "source-layer": "natural_areas",
+            "source-layer": "natural",
             "type": "fill",
             "filter": [
                 "in", ["get", "natural"], ["literal", ["wood", "scrub", "wetland", "grassland", "bare_rock", "sand"]]
@@ -32,13 +39,100 @@
             "paint": {
                 "fill-color": [
                     "match", ["get", "natural"],
-                    "scrub", "yellow",
-                    "wetland", "teal",
-                    "grassland", "lime",
-                    "bare_rock", "grey",
-                    "sand", "tan",
-                    "green"
+                    "scrub", "#c3ffb2",
+                    "wetland", "#b2ffda",
+                    "grassland", "#dfffb2",
+                    "bare_rock", "WhiteSmoke",
+                    "sand", "#fffbb2",
+                    "#b2ffba"
                 ]
+            }
+        },
+        {
+            "id": "waterway-flowing",
+            "source": "rustic",
+            "source-layer": "waterway",
+            "type": "line",
+            "filter": [
+                "in", ["get", "waterway"], ["literal", ["river", "stream", "ditch", "drain", "canal", "flowline", "fish_pass"]]
+            ],
+            "paint": {
+                "line-color": "DarkBlue"
+            }
+        },
+        {
+            "id": "waterway-barrier-fill",
+            "source": "rustic",
+            "source-layer": "waterway",
+            "type": "fill",
+            "filter": [
+                "all",
+                ["==", ["get", "geom_type"], "area"],
+                ["in", ["get", "waterway"], ["literal", ["dam", "weir"]]]
+            ],
+            "paint": {
+                "fill-color": "Grey"
+            }
+        },
+        {
+            "id": "waterway-barrier-line",
+            "source": "rustic",
+            "source-layer": "waterway",
+            "type": "line",
+            "filter": [
+                "all",
+                ["==", ["get", "geom_type"], "line"],
+                ["in", ["get", "waterway"], ["literal", ["dam", "weir"]]]
+            ],
+            "paint": {
+                "line-color": "DarkGrey"
+            }
+        },
+        {
+            "id": "barrier-fill",
+            "source": "rustic",
+            "source-layer": "barrier",
+            "type": "fill",
+            "filter": ["==", ["get", "geom_type"], "area"],
+            "paint": {
+                "fill-color": "Grey"
+            }
+        },
+        {
+            "id": "barrier-line",
+            "source": "rustic",
+            "source-layer": "barrier",
+            "type": "line",
+            "filter": ["==", ["get", "geom_type"], "line"],
+            "paint": {
+                "line-color": "DarkGrey"
+            }
+        },
+        {
+            "id": "railway",
+            "source": "rustic",
+            "source-layer": "railway",
+            "type": "line",
+            "paint": {
+                "line-color": "Black"
+            }
+        },
+        {
+            "id": "highway",
+            "source": "rustic",
+            "source-layer": "highway",
+            "type": "line",
+            "paint": {
+                "line-color": "Red"
+            }
+        },
+        {
+            "id": "building",
+            "source": "rustic",
+            "source-layer": "building",
+            "type": "fill",
+            "paint": {
+                "fill-color": "Black"
             }
         }
     ]

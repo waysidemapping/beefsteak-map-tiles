@@ -20,8 +20,7 @@ RUN mkdir /usr/src/app/scratch
 # Create the volume for the planet file (this is for mounting)
 VOLUME ["/usr/src/app/scratch"]
 
-COPY install.sh .
-COPY rustic ./rustic
+COPY . .
 
 # Make the install.sh script executable
 RUN chmod +x install.sh
