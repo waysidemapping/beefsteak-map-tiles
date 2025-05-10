@@ -142,10 +142,7 @@ CREATE OR REPLACE
           SELECT *
           FROM "military", envelope env
           WHERE geom && env.env_geom
-            AND (
-              geom_type = 'area'
-              OR (geom_type = 'closed_way' AND "military" NOT IN ('trench'))
-            )
+            AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
@@ -271,16 +268,6 @@ CREATE OR REPLACE
             AND (
               geom_type = 'line'
               OR (geom_type = 'closed_way' AND "man_made" IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
-            )
-            AND ("highway" IS NULL OR "highway" = 'no')
-            AND z >= 13
-        UNION ALL
-          SELECT *
-          FROM "military", envelope env
-          WHERE geom && env.env_geom
-            AND (
-              geom_type = 'line'
-              OR (geom_type = 'closed_way' AND "military" IN ('trench'))
             )
             AND ("highway" IS NULL OR "highway" = 'no')
             AND z >= 13
@@ -462,10 +449,7 @@ CREATE OR REPLACE
           SELECT *
           FROM "military", envelope env
           WHERE geom && env.env_geom
-            AND (
-              geom_type IN ('point', 'area')
-              OR (geom_type = 'closed_way' AND "military" NOT IN ('trench'))
-            )            
+            AND geom_type IN ('point', 'area', 'closed_way')           
             AND z >= 12
         UNION ALL
           SELECT *
