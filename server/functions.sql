@@ -159,7 +159,7 @@ CREATE OR REPLACE
             )
             AND "area_3857" > env.env_area * 0.000001
             AND ("building" IS NULL OR "building" = 'no')
-            AND "natural" NOT IN ('bay', 'coastline')
+            AND "natural" NOT IN ('bay', 'coastline', 'peninsula')
             AND (
               (z >= 0 AND ("natural" = 'water'))
               OR z >= 10
