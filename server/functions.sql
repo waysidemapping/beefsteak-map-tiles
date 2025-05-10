@@ -288,11 +288,11 @@ CREATE OR REPLACE
           WHERE geom && env.env_geom
             AND geom_type IN ('line', 'closed_way')
             AND (
-              (z >= 4 AND ("highway" IN ('motorway', 'motorway_link') OR "expressway" = 'yes'))
-              OR (z >= 6 AND ("highway" IN ('trunk', 'trunk_link')))
-              OR (z >= 10 AND ("highway" IN ('primary', 'primary_link', 'unclassified')))
+              (z >= 4 AND ("highway" IN ('motorway') OR "expressway" = 'yes'))
+              OR (z >= 6 AND ("highway" IN ('trunk')))
+              OR (z >= 10 AND ("highway" IN ('motorway_link', 'primary', 'primary_link', 'trunk_link')))
               OR (z >= 11 AND ("highway" IN ('secondary', 'secondary_link')))
-              OR (z >= 12 AND ("highway" IN ('tertiary', 'tertiary_link', 'residential')))
+              OR (z >= 12 AND ("highway" IN ('tertiary', 'tertiary_link', 'residential', 'unclassified')))
               OR z >= 13
             )
         UNION ALL
