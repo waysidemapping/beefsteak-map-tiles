@@ -165,7 +165,9 @@ portable
 portage
 power
 power_supply
+protect_class
 protected_area
+protection_title
 public_transport
 railway
 ramp

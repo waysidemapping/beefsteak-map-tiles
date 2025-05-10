@@ -1,6 +1,8 @@
 admin_level
 area
+capital
 expressway
+landmark
 order:strahler
 population
 usage

@@ -469,6 +469,19 @@ CREATE OR REPLACE
             AND z >= 12
         UNION ALL
           SELECT *
+          FROM "place", envelope env
+          WHERE geom && env.env_geom
+            AND geom_type IN ('point', 'area', 'closed_way')
+            AND (
+              (
+                "population" ~ '^\d+$'
+                AND (z >= 4 AND ("capital" IN ('2', '4') OR "population"::integer > 1000000))
+                OR (z >= 8 AND ("capital" IN ('6')))
+              )
+              OR z >= 13
+            )
+        UNION ALL
+          SELECT *
           FROM "power", envelope env
           WHERE geom && env.env_geom
             AND (
@@ -547,7 +560,6 @@ advertising
 attraction
 boundary
 golf
-place
 playground
 public_transport
 */
