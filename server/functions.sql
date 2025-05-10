@@ -15,7 +15,9 @@ CREATE OR REPLACE
     ),
     tiles AS (
       SELECT ST_AsMVT(tile, 'area', 4096, 'geom') AS mvt FROM (
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+        SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+        FROM (
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "amenity", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
@@ -25,41 +27,41 @@ CREATE OR REPLACE
             AND z >= 10
             AND (z >= 18 OR ("amenity" NOT IN ('parking_space')))
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "barrier", envelope env
           WHERE geom && env.env_geom
             AND geom_type = 'area'
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "building", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("area_3857" = 0 OR "area_3857" > env.env_area * 0.000001)
             AND z >= 13
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "club", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "craft", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "education", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "emergency", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
@@ -67,55 +69,55 @@ CREATE OR REPLACE
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "healthcare", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "highway", envelope env
           WHERE geom && env.env_geom
             AND geom_type = 'area'
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "historic", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "information", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "landuse", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND "area_3857" > env.env_area * 0.000001
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "leisure", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "man_made", envelope env
           WHERE geom && env.env_geom
             AND geom_type = 'area'
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "natural", envelope env
           WHERE geom && env.env_geom
             AND geom_type = 'area'
@@ -126,27 +128,27 @@ CREATE OR REPLACE
               OR z >= 10
             )
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "office", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "railway", envelope env
           WHERE geom && env.env_geom
             AND geom_type = 'area'
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "shop", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "tourism", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
@@ -154,21 +156,26 @@ CREATE OR REPLACE
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "waterway", envelope env
           WHERE geom && env.env_geom
             AND geom_type = 'area'
             AND z >= 10
-      ) as tile WHERE geom IS NOT NULL
+        )
+        AS raw_data, envelope env
+        WHERE geom IS NOT NULL
+      ) as tile
     UNION ALL
       SELECT ST_AsMVT(tile, 'line', 4096, 'geom') AS mvt FROM (
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+        SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+        FROM (
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "barrier", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('line', 'closed_way')
             AND z >= 13
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "highway", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('line', 'closed_way')
@@ -181,7 +188,7 @@ CREATE OR REPLACE
               OR z >= 13
             )
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "railway", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('line', 'closed_way')
@@ -193,7 +200,7 @@ CREATE OR REPLACE
               OR z >= 13
             )
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "route", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('line', 'closed_way')
@@ -202,7 +209,7 @@ CREATE OR REPLACE
               OR z >= 13
             )
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "waterway", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('line', 'closed_way')
@@ -210,10 +217,15 @@ CREATE OR REPLACE
               (z >= 6 AND ("waterway" = 'river'))
               OR z >= 10
             )
-      ) as tile WHERE geom IS NOT NULL
+        )
+        AS raw_data, envelope env
+        WHERE geom IS NOT NULL
+      ) as tile
     UNION ALL
       SELECT ST_AsMVT(tile, 'point', 4096, 'geom') AS mvt FROM (
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+        SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+        FROM (
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "amenity", envelope env
           WHERE geom && env.env_geom
             AND ("education" IS NULL OR "education" = 'no')
@@ -222,107 +234,111 @@ CREATE OR REPLACE
             AND (z >= 15 OR ("amenity" NOT IN ('bench', 'waste_basket')))
             AND (z >= 18 OR ("amenity" NOT IN ('parking_space')))
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "barrier", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('point', 'area')
             AND z >= 15
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "club", envelope env
           WHERE geom && env.env_geom
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "craft", envelope env
           WHERE geom && env.env_geom
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "education", envelope env
           WHERE geom && env.env_geom
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "emergency", envelope env
           WHERE geom && env.env_geom
             AND ("highway" IS NULL OR "highway" = 'no')
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "healthcare", envelope env
           WHERE geom && env.env_geom
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "highway", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('point', 'area')
             AND z >= 15
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "historic", envelope env
           WHERE geom && env.env_geom
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "information", envelope env
           WHERE geom && env.env_geom
             AND z >= 15
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "landuse", envelope env
           WHERE geom && env.env_geom
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "leisure", envelope env
           WHERE geom && env.env_geom
             AND z >= 15
             AND (z >= 12 OR "leisure" NOT IN ('picnic_table'))
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "man_made", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('point', 'area')
             AND z >= 15
             AND (z >= 12 OR "man_made" NOT IN ('flagpole', 'manhole', 'utility_pole'))
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "natural", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('point', 'area')
             AND z >= 15
             AND (z >= 12 OR "natural" NOT IN ('tree'))
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "office", envelope env
           WHERE geom && env.env_geom
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "railway", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('point', 'area')
             AND z >= 15
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "shop", envelope env
           WHERE geom && env.env_geom
+            AND ("amenity" IS NULL OR "amenity" = 'no')
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "tourism", envelope env
           WHERE geom && env.env_geom
             AND ("information" IS NULL OR "information" = 'no')
             AND z >= 12
         UNION ALL
-          SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
+          SELECT {{COLUMN_NAMES}}, geom
           FROM "waterway", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('point', 'area')
             AND z >= 12
-      ) as tile WHERE geom IS NOT NULL
+        )
+        AS raw_data, envelope env
+        WHERE geom IS NOT NULL
+      ) as tile
   )
   SELECT string_agg(mvt, ''::bytea) FROM tiles;
 $$;
