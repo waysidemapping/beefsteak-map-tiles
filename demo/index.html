@@ -17,10 +17,24 @@
       var map = new maplibregl.Map({
           container: 'map', // container id
           style: '/style.json', // style URL
-          hash: true,
+          hash: 'map',
           center: [0, 0], // starting position [lng, lat]
           zoom: 1 // starting zoom
       });
+      map
+        .addControl(new maplibregl.NavigationControl({
+          visualizePitch: true
+        }))
+        .addControl(new maplibregl.GeolocateControl({
+            positionOptions: {
+                enableHighAccuracy: true
+            },
+            trackUserLocation: true
+        }))
+        .addControl(new maplibregl.ScaleControl({
+            maxWidth: 150,
+            unit: 'imperial'
+        }), "bottom-left");
     </script>
   </body>
 </html>
