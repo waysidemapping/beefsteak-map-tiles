@@ -1,0 +1,8 @@
+admin_level
+area
+expressway
+order:strahler
+population
+usage
+service
+type

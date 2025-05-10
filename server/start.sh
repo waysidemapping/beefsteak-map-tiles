@@ -5,8 +5,9 @@ set -e # Exit if any command fails
 
 PLANET_URL="https://download.geofabrik.de/north-america/us/pennsylvania-latest.osm.pbf"
 # "https://planet.openstreetmap.org/pbf/planet-latest.osm.pbf"
-SCRATCH_DIR="/var/tmp/rustic"
+SCRATCH_DIR="/var/tmp/app"
 PLANET_FILE="$SCRATCH_DIR/planet-latest.osm.pbf"
+FLAT_NODES_FILE="$SCRATCH_DIR/flatnodes"
 SQL_FUNCTIONS_FILE="functions.sql"
 LUA_STYLE_FILE="osm2pgsql_style_config.lua"
 MARTIN_CONFIG_FILE="martin_config.yaml"
@@ -127,22 +128,15 @@ else
     sudo -u postgres psql "$DB_NAME" --command='CREATE EXTENSION hstore;'
 fi
 
-# Generate COLUMN_NAMES by quoting each line in keys.txt and joining with commas
-COLUMN_NAMES=$(sed 's/.*/"&"/' keys.txt | paste -sd, -)
-# Read the SQL file content into a variable
-SQL_CONTENT=$(<"$SQL_FUNCTIONS_FILE")
-# Replace the placeholder with actual column names
-SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES\}\}/$COLUMN_NAMES}
-
-# reinstall functions every time in case something changed
-sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$SQL_CONTENT"
-
 # Load data into database
 TABLES_EXISTING=$(sudo -u postgres psql -d "$DB_NAME" -tAc \
   "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '${TABLE_PREFIX}_%';")
 if [[ "$TABLES_EXISTING" -gt 0 ]]; then
     echo "osm2pgsql import detected — $TABLES_EXISTING tables found with prefix '${TABLE_PREFIX}_'."
 else
+    # remove stale flat nodes cache file, if any
+    rm -f -- "$FLAT_NODES_FILE"
+
     echo "Downloading the OSM Planet file..."
     if [ ! -f "$PLANET_FILE" ]; then
         wget "$PLANET_URL" -O "$PLANET_FILE"
@@ -150,17 +144,41 @@ else
         echo "Planet file already exists: $PLANET_FILE"
     fi
 
+    # allow 2 GB of RAM for node cache if not using flat nodes file
+    NODE_CACHE_PARAMS="--cache=2000"
+    # cache nodes in a flat file if input is larger than 10 GB, per https://osm2pgsql.org/doc/manual.html#flat-node-store
+    if [[ -f "$PLANET_FILE" ]] && [[ $(stat -c%s "$PLANET_FILE") -gt 10737418240 ]]; then
+        NODE_CACHE_PARAMS="--flat-nodes=$FLAT_NODES_FILE --cache=0"
+    fi
+
     echo "Running import..."
-    sudo -u "$DB_USER" osm2pgsql -d "$DB_NAME" \
+    # These options are documented but are not needed with flex output: --merc --multi-geometry --keep-coastlines
+    sudo -u "$DB_USER" osm2pgsql \
+        -d "$DB_NAME" \
         -U "$DB_USER" \
         --create \
         --slim \
-        --multi-geometry \
-        --output=flex \
+        --extra-attributes \
+        "$NODE_CACHE_PARAMS" \
         --prefix="$TABLE_PREFIX" \
+        --output=flex \
         --style="$LUA_STYLE_FILE" \
         "$PLANET_FILE"
 fi
+
+# Generate COLUMN_NAMES from the keys listed in the two text files used when creating the database
+COLUMN_NAMES=$(cat keys_columns.txt | sed 's/.*/"&"/' | paste -sd, -)
+COLUMN_NAMES="$COLUMN_NAMES,$(cat keys_tables.txt | sed 's/.*/"&"/' | paste -sd, -)"
+
+FIELD_DEFS="$(cat keys_columns.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
+FIELD_DEFS="$FIELD_DEFS,$(cat keys_tables.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
+
+SQL_CONTENT=$(<"$SQL_FUNCTIONS_FILE")
+SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES\}\}/$COLUMN_NAMES}
+SQL_CONTENT=${SQL_CONTENT//\{\{FIELD_DEFS\}\}/$FIELD_DEFS}
+
+# reinstall functions every time in case something changed
+sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$SQL_CONTENT"
 
 # Install build-essential: needed to install Martin
 if ! dpkg -s build-essential >/dev/null 2>&1; then
