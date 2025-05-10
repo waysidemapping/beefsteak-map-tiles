@@ -162,6 +162,16 @@ CREATE OR REPLACE
             AND z >= 10
         UNION ALL
           SELECT *
+          FROM "power", envelope env
+          WHERE geom && env.env_geom
+            AND (
+              geom_type = 'area'
+              OR (geom_type = 'closed_way' AND "power" NOT IN ('cable', 'line', 'minor_line'))
+            )
+            AND ("building" IS NULL OR "building" = 'no')
+            AND z >= 10
+        UNION ALL
+          SELECT *
           FROM "railway", envelope env
           WHERE geom && env.env_geom
             AND geom_type = 'area'
@@ -172,6 +182,16 @@ CREATE OR REPLACE
           FROM "shop", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
+            AND ("building" IS NULL OR "building" = 'no')
+            AND z >= 10
+        UNION ALL
+          SELECT *
+          FROM "telecom", envelope env
+          WHERE geom && env.env_geom
+            AND (
+              geom_type = 'area'
+              OR (geom_type = 'closed_way' AND "telecom" NOT IN ('line'))
+            )
             AND ("building" IS NULL OR "building" = 'no')
             AND z >= 10
         UNION ALL
@@ -262,6 +282,15 @@ CREATE OR REPLACE
             AND z >= 13
         UNION ALL
           SELECT *
+          FROM "power", envelope env
+          WHERE geom && env.env_geom
+            AND (
+              geom_type = 'power'
+              OR (geom_type = 'closed_way' AND "power" IN ('cable', 'line', 'minor_line'))
+            )
+            AND z >= 13
+        UNION ALL
+          SELECT *
           FROM "railway", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('line', 'closed_way')
@@ -281,6 +310,15 @@ CREATE OR REPLACE
               (z >= 4 AND ("route" IN ('ferry')))
               OR z >= 13
             )
+        UNION ALL
+          SELECT *
+          FROM "telecom", envelope env
+          WHERE geom && env.env_geom
+            AND (
+              geom_type = 'telecom'
+              OR (geom_type = 'closed_way' AND "telecom" IN ('line'))
+            )
+            AND z >= 13
         UNION ALL
           SELECT *
           FROM "waterway", envelope env
@@ -419,6 +457,15 @@ CREATE OR REPLACE
             AND z >= 12
         UNION ALL
           SELECT *
+          FROM "power", envelope env
+          WHERE geom && env.env_geom
+            AND (
+              geom_type IN ('point', 'area')
+              OR (geom_type = 'closed_way' AND "power" NOT IN ('cable', 'line', 'minor_line'))
+            )
+            AND z >= 15
+        UNION ALL
+          SELECT *
           FROM "railway", envelope env
           WHERE geom && env.env_geom
             AND geom_type IN ('point', 'area')
@@ -430,6 +477,15 @@ CREATE OR REPLACE
             AND geom_type IN ('point', 'area', 'closed_way')
             AND ("amenity" IS NULL OR "amenity" = 'no')
             AND z >= 12
+        UNION ALL
+          SELECT *
+          FROM "telecom", envelope env
+          WHERE geom && env.env_geom
+            AND (
+              geom_type IN ('point', 'area')
+              OR (geom_type = 'closed_way' AND "telecom" NOT IN ('line'))
+            )
+            AND z >= 15
         UNION ALL
           SELECT *
           FROM "tourism", envelope env
@@ -482,7 +538,5 @@ golf
 military
 place
 playground
-power
 public_transport
-telecom
 */
