@@ -58,7 +58,7 @@ CREATE OR REPLACE
           WHERE geom && env.env_geom
             AND geom_type IN ('area', 'closed_way')
             AND ("area_3857" = 0 OR "area_3857" > env.env_area * 0.000001)
-            AND z >= 13
+            AND z >= 14
         UNION ALL
           SELECT *
           FROM "club", envelope env
