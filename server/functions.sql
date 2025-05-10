@@ -292,6 +292,7 @@ CREATE OR REPLACE
               OR (geom_type = 'closed_way' AND "natural" IN ('cliff', 'coastline', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
             )
             AND ("highway" IS NULL OR "highway" = 'no')
+            AND "natural" NOT IN ('bay', 'coastline', 'peninsula')
             AND z >= 13
         UNION ALL
           SELECT *
@@ -473,6 +474,7 @@ CREATE OR REPLACE
               geom_type IN ('point', 'area')
               OR (geom_type = 'closed_way' AND "natural" NOT IN ('cliff', 'coastline', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
             )
+            AND "natural" NOT IN ('coastline')
             AND z >= 15
             AND (z >= 12 OR "natural" NOT IN ('rock', 'shrub', 'stone', 'termite_mound', 'tree', 'tree_stump'))
         UNION ALL
