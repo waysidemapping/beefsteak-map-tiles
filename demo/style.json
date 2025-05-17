@@ -16,16 +16,6 @@
             }
         },
         {
-            "id": "ocean",
-            "source": "rustic",
-            "source-layer": "ocean",
-            "type": "fill",
-            "paint": {
-                "fill-color": "Magenta",
-                "fill-opacity": 0.5
-            }
-        },
-        {
             "id": "area",
             "source": "rustic",
             "source-layer": "area",
@@ -34,7 +24,7 @@
             "paint": {
                 "fill-color": [
                     "case",
-                    ["==", ["get", "natural"], "water"], "Blue",
+                    ["in", ["get", "natural"], ["literal", ["coastline", "water"]]], "Blue",
                     "Black"
                 ],
                 "fill-opacity": 0.1

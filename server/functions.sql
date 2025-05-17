@@ -26,9 +26,8 @@ CREATE OR REPLACE
       FROM raw_envelope
     ),
     tiles AS (
-      SELECT ST_AsMVT(tile, 'ocean', 4096, 'geom') AS mvt
-      FROM (
-        SELECT ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
+      SELECT ST_AsMVT(tile, 'area', 4096, 'geom') AS mvt FROM (
+        SELECT {{COLUMN_NAMES_FOR_COASTLINE}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
         FROM (
           WITH
           coastlines AS (
@@ -208,9 +207,7 @@ CREATE OR REPLACE
           FROM all_lines
         ), envelope env
         WHERE geom IS NOT NULL
-      ) as tile
-    UNION ALL
-      SELECT ST_AsMVT(tile, 'area', 4096, 'geom') AS mvt FROM (
+        UNION ALL
         SELECT {{COLUMN_NAMES}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
         FROM (
           SELECT *
@@ -472,8 +469,7 @@ CREATE OR REPLACE
             AND geom_type = 'area'
             AND "building" IS NULL
             AND z >= 10
-        )
-        AS raw_data, envelope env
+        ), envelope env
         WHERE geom IS NOT NULL
       ) as tile
     UNION ALL
@@ -614,8 +610,7 @@ CREATE OR REPLACE
               (z >= 6 AND ("waterway" = 'river'))
               OR z >= 10
             )
-        )
-        AS raw_data, envelope env
+        ), envelope env
         WHERE geom IS NOT NULL
       ) as tile
     UNION ALL
@@ -845,8 +840,7 @@ CREATE OR REPLACE
           WHERE geom && env.env_geom
             AND geom_type IN ('point', 'area')
             AND z >= 12
-        )
-        AS raw_data, envelope env
+        ), envelope env
         WHERE geom IS NOT NULL
       ) as tile
   )
@@ -859,10 +853,6 @@ DO $do$ BEGIN
         "description": "Delightfully unrefined OpenStreetMap tiles",
         "attribution": "© OpenStreetMap",
         "vector_layers": [
-          {
-            "id": "ocean",
-            "fields": {}
-          },
           {
             "id": "area",
             "fields": {{{FIELD_DEFS}}}

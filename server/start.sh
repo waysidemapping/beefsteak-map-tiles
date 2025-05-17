@@ -168,14 +168,20 @@ fi
 
 # Generate COLUMN_NAMES from the keys listed in the two text files used when creating the database
 COLUMN_NAMES=$(cat keys_columns.txt | sed 's/.*/"&"/' | paste -sd, -)
-# Use NULLIF to filter out key=no values for top-level tags (troll tags) that cause headaches when rendering
-COLUMN_NAMES="$COLUMN_NAMES,$(cat keys_tables.txt | sed 's/.*/NULLIF(\"&\", '\''no'\'') AS \"&\"/' | paste -sd, -)"
+COLUMN_NAMES="$COLUMN_NAMES,$(cat keys_tables.txt | sed 's/.*/"&"/' | paste -sd, -)"
+
+# Coastlines are derived so we want to set all the attributes to NULL
+COLUMN_NAMES_FOR_COASTLINE=$(cat keys_columns.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)
+COLUMN_NAMES_FOR_COASTLINE="$COLUMN_NAMES_FOR_COASTLINE,$(cat keys_tables.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)"
+# Except for the attribute `natural=coastline` which we'll replace inline while keeping the column order
+COLUMN_NAMES_FOR_COASTLINE=$(echo "$COLUMN_NAMES_FOR_COASTLINE" | sed 's/NULL AS "natural"/'\''coastline'\'' AS "natural"/')
 
 FIELD_DEFS="$(cat keys_columns.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
 FIELD_DEFS="$FIELD_DEFS,$(cat keys_tables.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
 
 SQL_CONTENT=$(<"$SQL_FUNCTIONS_FILE")
 SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES\}\}/$COLUMN_NAMES}
+SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES_FOR_COASTLINE\}\}/$COLUMN_NAMES_FOR_COASTLINE}
 SQL_CONTENT=${SQL_CONTENT//\{\{FIELD_DEFS\}\}/$FIELD_DEFS}
 
 # Reinstall functions every time in case something changed.
