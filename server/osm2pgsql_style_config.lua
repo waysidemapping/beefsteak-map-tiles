@@ -1,3 +1,5 @@
+local helperDataDir = "/var/tmp/app/import_helper_data/"
+
 local column_keys = {}
 local table_keys = {}
 
@@ -12,21 +14,14 @@ local coastline_table = osm2pgsql.define_table{
     }
 }
 
-local function get_script_directory()
-    local info = debug.getinfo(1, "S")
-    return info.source:match("@(.*[/\\])") or ""
-end
-
-local script_dir = get_script_directory()
-
-local file = io.open(script_dir .. "keys_columns.txt", "r")
+local file = io.open(helperDataDir .. "column_keys.txt", "r")
 local file_string = file:read("*all")
 file:close()
 for key in file_string:gmatch("[^\r\n]+") do
     column_keys[key] = true
 end
 
-file = io.open(script_dir .. "keys_tables.txt", "r")
+file = io.open(helperDataDir .. "table_keys.txt", "r")
 file_string = file:read("*all")
 file:close()
 for key in file_string:gmatch("[^\r\n]+") do
@@ -61,6 +56,7 @@ local ignore_top_level_tags = {
         destination = true,
         customers = true,
         official = true,
+        permissive = true,
         private = true,
         yes = true
     },

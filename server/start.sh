@@ -8,7 +8,6 @@ PLANET_URL="https://download.geofabrik.de/north-america/us/pennsylvania-latest.o
 SCRATCH_DIR="/var/tmp/app"
 PLANET_FILE="$SCRATCH_DIR/planet-latest.osm.pbf"
 FLAT_NODES_FILE="$SCRATCH_DIR/flatnodes"
-SQL_FUNCTIONS_FILE="functions.sql"
 LUA_STYLE_FILE="osm2pgsql_style_config.lua"
 MARTIN_CONFIG_FILE="martin_config.yaml"
 DB_NAME="osm"
@@ -134,8 +133,11 @@ TABLES_EXISTING=$(sudo -u postgres psql -d "$DB_NAME" -tAc \
 if [[ "$TABLES_EXISTING" -gt 0 ]]; then
     echo "osm2pgsql import detected — $TABLES_EXISTING tables found with prefix '${TABLE_PREFIX}_'."
 else
-    # remove stale flat nodes cache file, if any
+    # Remove stale flat nodes cache file, if any
     rm -f -- "$FLAT_NODES_FILE"
+    # Copy the helper data we used during import to a persistent directory so it 
+    # will remain unchanged over the lifetime of the database
+    cp -f -R helper_data "$SCRATCH_DIR/import_helper_data"
 
     echo "Downloading the OSM Planet file..."
     if [ ! -f "$PLANET_FILE" ]; then
@@ -144,9 +146,9 @@ else
         echo "Planet file already exists: $PLANET_FILE"
     fi
 
-    # allow 2 GB of RAM for node cache if not using flat nodes file
+    # Allow 2 GB of RAM for node cache if not using flat nodes file
     NODE_CACHE_PARAMS="--cache=2000"
-    # cache nodes in a flat file if input is larger than 10 GB, per https://osm2pgsql.org/doc/manual.html#flat-node-store
+    # Cache nodes in a flat file if input is larger than 10 GB, per https://osm2pgsql.org/doc/manual.html#flat-node-store
     if [[ -f "$PLANET_FILE" ]] && [[ $(stat -c%s "$PLANET_FILE") -gt 10737418240 ]]; then
         NODE_CACHE_PARAMS="--flat-nodes=$FLAT_NODES_FILE --cache=0"
     fi
@@ -166,27 +168,9 @@ else
         "$PLANET_FILE"
 fi
 
-# Generate COLUMN_NAMES from the keys listed in the two text files used when creating the database
-COLUMN_NAMES=$(cat keys_columns.txt | sed 's/.*/"&"/' | paste -sd, -)
-COLUMN_NAMES="$COLUMN_NAMES,$(cat keys_tables.txt | sed 's/.*/"&"/' | paste -sd, -)"
-
-# Coastlines are derived so we want to set all the attributes to NULL
-COLUMN_NAMES_FOR_COASTLINE=$(cat keys_columns.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)
-COLUMN_NAMES_FOR_COASTLINE="$COLUMN_NAMES_FOR_COASTLINE,$(cat keys_tables.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)"
-# Except for the attribute `natural=coastline` which we'll replace inline while keeping the column order
-COLUMN_NAMES_FOR_COASTLINE=$(echo "$COLUMN_NAMES_FOR_COASTLINE" | sed 's/NULL AS "natural"/'\''coastline'\'' AS "natural"/')
-
-FIELD_DEFS="$(cat keys_columns.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
-FIELD_DEFS="$FIELD_DEFS,$(cat keys_tables.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
-
-SQL_CONTENT=$(<"$SQL_FUNCTIONS_FILE")
-SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES\}\}/$COLUMN_NAMES}
-SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES_FOR_COASTLINE\}\}/$COLUMN_NAMES_FOR_COASTLINE}
-SQL_CONTENT=${SQL_CONTENT//\{\{FIELD_DEFS\}\}/$FIELD_DEFS}
-
 # Reinstall functions every time in case something changed.
-# We have to do this after the database has been populated to pass validation.
-sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$SQL_CONTENT"
+# In order to pass validation, we have to do this after the database has been populated 
+/bin/bash update_sql_functions.sh
 
 # Install build-essential: needed to install Martin
 if ! dpkg -s build-essential >/dev/null 2>&1; then

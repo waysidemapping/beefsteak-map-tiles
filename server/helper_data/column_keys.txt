@@ -1,4 +1,5 @@
 admin_level
+aerodrome
 area
 capital
 cycleway
