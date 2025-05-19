@@ -206,4 +206,4 @@ else
 fi
 
 # start tileserver
-sudo -u "$DB_USER" -- /usr/local/cargo/bin/martin --config "martin_config.yaml"
+sudo -u "$DB_USER" -- /usr/local/cargo/bin/martin --config "$MARTIN_CONFIG_FILE"
