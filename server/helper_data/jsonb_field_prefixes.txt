@@ -1,0 +1,10 @@
+bridge:name
+diet
+lock_name
+monitoring
+mtb:name
+name
+rapids:name
+tunnel:name
+waterbody:name
+waterway:name

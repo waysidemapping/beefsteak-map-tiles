@@ -8,8 +8,9 @@ SCRATCH_DIR="/var/tmp/app"
 SQL_FUNCTIONS_FILE="functions.sql"
 DB_NAME="osm"
 
-# Use the latest list instead of the list at import since all tags are present in the db, we're just filtering 
+# Use the latest lists instead of the lists at import since all tags are present in the db, we're just filtering 
 JSONB_KEYS=$(cat $APP_DIR/helper_data/jsonb_field_keys.txt | sed "s/.*/'&'/" | paste -sd, -)
+JSONB_PREFIXES=$(awk '{print "OR key LIKE \x27" $0 ":%\x27"}' "$APP_DIR/helper_data/jsonb_field_prefixes.txt" | paste -sd' ' -)
 
 # Generate COLUMN_NAMES from the keys listed in the two text files used when creating the database
 COLUMN_NAMES=$(cat $SCRATCH_DIR/import_helper_data/column_keys.txt | sed 's/.*/"&"/' | paste -sd, -)
@@ -26,6 +27,7 @@ FIELD_DEFS="$FIELD_DEFS,$(cat $SCRATCH_DIR/import_helper_data/table_keys.txt | s
 
 SQL_CONTENT=$(<"$SQL_FUNCTIONS_FILE")
 SQL_CONTENT=${SQL_CONTENT//\{\{JSONB_KEYS\}\}/$JSONB_KEYS}
+SQL_CONTENT=${SQL_CONTENT//\{\{JSONB_PREFIXES\}\}/$JSONB_PREFIXES}
 SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES\}\}/$COLUMN_NAMES}
 SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES_FOR_COASTLINE\}\}/$COLUMN_NAMES_FOR_COASTLINE}
 SQL_CONTENT=${SQL_CONTENT//\{\{FIELD_DEFS\}\}/$FIELD_DEFS}
