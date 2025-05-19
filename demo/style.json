@@ -119,11 +119,17 @@
             "id": "building",
             "source": "rustic",
             "source-layer": "area",
-            "type": "fill",
+            "type": "fill-extrusion",
             "filter": ["has", "building"],
             "paint": {
-                "fill-color": "Orange",
-                "fill-opacity": 0.5
+                "fill-extrusion-color": "Orange",
+                "fill-extrusion-opacity": 0.5,
+                "fill-extrusion-height": [
+                    "case",
+                    ["has", "height"], ["to-number", ["get", "height"]],
+                    ["has", "building:levels"], ["*", ["to-number", ["get", "building:levels"]], 3],
+                    3
+                ]
             }
         },
         {
