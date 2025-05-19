@@ -58,11 +58,13 @@ local ignore_top_level_tags = {
         official = true,
         permissive = true,
         private = true,
+        unknown = true,
         yes = true
     },
     indoor = {
-        -- this is an attribute tag
-        yes = true
+        -- these are boolean attribute tags
+        yes = true,
+        unknown = true
     },
     natural = {
         -- this is a very special tag we will handle separately
