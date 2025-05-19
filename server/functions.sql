@@ -30,31 +30,42 @@ CREATE OR REPLACE
         SELECT {{COLUMN_NAMES_FOR_COASTLINE}}, ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
         FROM (
           WITH
+          -- Coastlines in OSM are expected to always be mapped as ways bounding the ocean
+          -- on their right side. All ways must be connected by their endpoints without gaps
+          -- to fully inscribe continents and islands.
+          -- 
+          -- Using these assumptions, we can form a a multipolygon geometry for each tile
+          -- that represents the filled ocean area without needing to pre-render the entire ocean.
+          -- 
+          -- First, we fetch all the coastlines in the tile and clip them to the bounds of the tile.
           coastlines AS (
             SELECT ST_Intersection(geom, env.env_geom) AS geom
             FROM "coastline", envelope env
             WHERE geom && env.env_geom
+              -- Ignore very small islands. This will not work if the island is mapped using more than one way.
               AND ("area_3857" = 0 OR "area_3857" > env.env_area * 0.000005)
           ),
-          merged_lines AS (
-            SELECT ST_Multi(ST_LineMerge(ST_Collect(geom))) AS geom
+          -- Create continuous coastline segments by merging the linestrings together based on their endpoints.
+          segments AS (
+            SELECT (ST_Dump(ST_Multi(ST_LineMerge(ST_Collect(geom))))).geom AS geom
             FROM coastlines
           ),
-          segments AS (
-            SELECT (ST_Dump(geom)).geom AS geom
-            FROM merged_lines
-          ),
+          -- Fetch only the unclosed linestrings. We need to manually close them in order for the
+          -- ocean fill to render correctly in the client. We can take advantage of the fact that
+          -- the startpoints and endpoints of the open segments are guaranteed to lay exactly on the
+          -- edge of the tile.
           open_segments AS (
             SELECT geom,
               ST_StartPoint(geom) AS startP,
-              -- ST_X(ST_StartPoint(geom)) AS startX,
-              -- ST_Y(ST_StartPoint(geom)) AS startY,
               ST_EndPoint(geom) AS endP
-              -- ST_X(ST_EndPoint(geom)) AS endX,
-              -- ST_Y(ST_EndPoint(geom)) AS endY
             FROM segments
             WHERE NOT ST_IsClosed(geom)
           ),
+          -- We'll close the open segments by matching every endpoint with a startpoint and adding a
+          -- path between them along the perimeter of the tile. Each pair of terminus points may not
+          -- necessary belong to the same open segment. 
+          --
+          -- We'll start by creating a single table containing all the startpoints and endpoints of the open segments.
           terminus_points AS (
             SELECT startP AS p, ST_X(startP) AS x, ST_Y(startP) AS y, 'start' AS placement
             FROM open_segments
@@ -62,7 +73,7 @@ CREATE OR REPLACE
             SELECT endP AS p, ST_X(endP) AS x, ST_Y(endP) AS y, 'end' AS placement
             FROM open_segments
           ),
-          -- order the points in clockwise order around the sides of the tile
+          -- Order the points in clockwise order around the sides of the tile starting at the bottom left corner.
           ordered_terminus_points AS (
             SELECT *, ROW_NUMBER() OVER (
             ORDER BY
@@ -79,17 +90,20 @@ CREATE OR REPLACE
             ) AS rn
             FROM terminus_points, envelope env
           ),
-          should_bump AS (
+          -- Determine if the first point is a startpoint.
+          first_point_is_startpoint AS (
             SELECT COUNT(*) AS flag FROM ordered_terminus_points WHERE rn = 1 AND placement = 'start'
           ),
+          -- Get the number of points in the table.
           terminus_points_row_count AS (
             SELECT COUNT(*) AS numrows FROM ordered_terminus_points
           ),
-          -- if the first point is a start point, bump everything up by one so the first point is an endpoint
+          -- We want the points to be in (endpoint, startpoint) order, so if the first point is a startpoint,
+          -- bump everything up by one so the first point is an endpoint.
           ordered_terminus_points_w_an_endpoint_first AS (
             SELECT p, x, y,
               CASE
-                WHEN should_bump.flag = 1 THEN
+                WHEN first_point_is_startpoint.flag = 1 THEN
                   CASE
                     WHEN rn = terminus_points_row_count.numrows THEN 1
                     ELSE rn + 1
@@ -97,15 +111,20 @@ CREATE OR REPLACE
                 ELSE
                   rn
               END AS rn
-            FROM ordered_terminus_points, should_bump, terminus_points_row_count
+            FROM ordered_terminus_points, first_point_is_startpoint, terminus_points_row_count
           ),
+          -- Create a single table with one row per (endpoint, startpoint) pair.
           paired_terminus_points AS (
             SELECT t1.p as endP, t2.p as startP, t1.x as endX, t2.x as startX, t1.y as endY, t2.y as startY
             FROM ordered_terminus_points_w_an_endpoint_first t1
             JOIN ordered_terminus_points_w_an_endpoint_first t2 ON t2.rn = t1.rn + 1
             WHERE t1.rn % 2 = 1
           ),
-          manual_segment_info AS (
+          -- Calculate the array of points needed to connect the endpoint with the startpoint
+          -- along the perimeter of the tile based on their relative positions. This could be
+          -- as simple as [endpoint, startpoint], or we might need incorporate the corners of
+          -- the tile.
+          connecting_points_arrays AS (
             SELECT
               CASE
                 WHEN startX = leftX THEN
@@ -177,34 +196,40 @@ CREATE OR REPLACE
                     ELSE NULL
                   END
                 ELSE NULL
-              END AS segment_points_array
+              END AS points_array
             FROM paired_terminus_points, envelope env
           ),
-          wireframe_lines AS (
-            SELECT
-              ST_MakeLine(
-                segment_points_array
-              ) AS geom
-            FROM manual_segment_info
-            WHERE segment_points_array IS NOT NULL
+          -- Build a single table of linestrings containing the the open segments and the connecting points built into lines.
+          open_segments_and_connecting_lines AS (
+              SELECT
+                ST_MakeLine(
+                  points_array
+                ) AS geom
+              FROM connecting_points_arrays
+              WHERE points_array IS NOT NULL
             UNION ALL
-            SELECT geom FROM open_segments
+              SELECT geom FROM open_segments
           ),
-          built_lines AS (
+          -- Connect the connecting lines and the open segments to form continuous closed linestrings.
+          manually_closed_segments AS (
             SELECT (ST_Dump(ST_Multi(ST_LineMerge(ST_Multi(ST_Collect(geom)))))).geom AS geom
-            FROM wireframe_lines
+            FROM open_segments_and_connecting_lines
           ),
-          all_lines AS (
+          -- Combine the segments we manually closed those that were already closed (i.e. islands that
+          -- are fully contained by the tile).
+          all_closed_lines AS (
               SELECT geom
-              FROM built_lines
+              FROM manually_closed_segments
               WHERE ST_IsClosed(geom)
             UNION ALL 
               SELECT geom
               FROM segments
               WHERE ST_IsClosed(geom)
           )
+          -- Turn the closed lines into polygons and collect them into a single multipolygon without
+          -- doing any expensive geometry-based processing.
           SELECT ST_Collect(ST_MakePolygon(geom)) AS geom
-          FROM all_lines
+          FROM all_closed_lines
         ), envelope env
         WHERE geom IS NOT NULL
         UNION ALL
