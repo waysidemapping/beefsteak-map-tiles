@@ -11,6 +11,7 @@ CREATE OR REPLACE
       SELECT 
         env_geom,
         ST_Area(env_geom) AS env_area,
+        ST_Area(env_geom) * 0.00001 AS min_area,
         (ST_XMax(env_geom) - ST_XMin(env_geom)) AS env_width,
         (ST_YMax(env_geom) - ST_YMin(env_geom)) AS env_height,
 
@@ -24,6 +25,8 @@ CREATE OR REPLACE
         ST_SetSRID(ST_Point(ST_XMin(env_geom), ST_YMin(env_geom)), 3857) AS bottomLeft,
         ST_SetSRID(ST_Point(ST_XMax(env_geom), ST_YMin(env_geom)), 3857) AS bottomRight
       FROM raw_envelope
+      -- Be super sure that this table will only have one row or else we'll incur lots of unexpected cross joins
+      LIMIT 1
     ),
     -- Coastlines in OSM are expected to always be mapped as ways bounding the ocean
     -- on their right side. All ways must be connected by their endpoints without gaps
@@ -38,7 +41,7 @@ CREATE OR REPLACE
       FROM "coastline", envelope env
       WHERE geom && env.env_geom
         -- Ignore very small islands. This will not work if the island is mapped using more than one way.
-        AND ("area_3857" = 0 OR "area_3857" > env.env_area * 0.000005)
+        AND ("area_3857" = 0 OR "area_3857" > min_area)
     ),
     -- Create continuous coastline segments by merging the linestrings together based on their endpoints.
     coastline_merged_segments AS (
@@ -232,7 +235,8 @@ CREATE OR REPLACE
         FROM "aerialway", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
-          AND "public_transport" IS NULL 
+          AND "area_3857" > min_area
+          AND "public_transport" IS NULL
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -243,6 +247,7 @@ CREATE OR REPLACE
             geom_type = 'area'
             OR (geom_type = 'closed_way' AND "aeroway" NOT IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))
           )
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -250,6 +255,7 @@ CREATE OR REPLACE
         FROM "advertising", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -257,6 +263,7 @@ CREATE OR REPLACE
         FROM "amenity", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND "education" IS NULL
           AND "healthcare" IS NULL
@@ -268,6 +275,7 @@ CREATE OR REPLACE
         FROM "area:highway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 18
       UNION ALL
@@ -275,6 +283,7 @@ CREATE OR REPLACE
         FROM "barrier", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -282,13 +291,14 @@ CREATE OR REPLACE
         FROM "building", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
-          AND ("area_3857" = 0 OR "area_3857" > env.env_area * 0.000005)
+          AND "area_3857" > min_area
           AND z >= 14
       UNION ALL
         SELECT *
         FROM "building:part", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 18
       UNION ALL
@@ -296,6 +306,7 @@ CREATE OR REPLACE
         FROM "club", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -303,6 +314,7 @@ CREATE OR REPLACE
         FROM "craft", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -310,6 +322,7 @@ CREATE OR REPLACE
         FROM "education", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -317,6 +330,7 @@ CREATE OR REPLACE
         FROM "emergency", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -324,6 +338,7 @@ CREATE OR REPLACE
         FROM "golf", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND "landuse" IS NULL
           AND "natural" IS NULL
@@ -333,6 +348,7 @@ CREATE OR REPLACE
         FROM "healthcare", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -340,6 +356,7 @@ CREATE OR REPLACE
         FROM "highway", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
+          AND "area_3857" > min_area
           AND "amenity" IS NULL
           AND "building" IS NULL
           AND "public_transport" IS NULL 
@@ -349,6 +366,7 @@ CREATE OR REPLACE
         FROM "historic", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -359,12 +377,14 @@ CREATE OR REPLACE
             geom_type = 'area'
             OR (geom_type = 'closed_way' AND "indoor" NOT IN ('wall'))
           )
+          AND "area_3857" > min_area
           AND z >= 18
       UNION ALL
         SELECT *
         FROM "information", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -372,14 +392,16 @@ CREATE OR REPLACE
         FROM "landuse", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
-          AND "area_3857" > env.env_area * 0.000005
+          AND "area_3857" > min_area
           AND z >= 10
       UNION ALL
         SELECT *
         FROM "leisure", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -390,6 +412,7 @@ CREATE OR REPLACE
             geom_type = 'area'
             OR (geom_type = 'closed_way' AND "man_made" NOT IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
           )
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -397,6 +420,7 @@ CREATE OR REPLACE
         FROM "military", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -407,7 +431,7 @@ CREATE OR REPLACE
             geom_type = 'area'
             OR (geom_type = 'closed_way' AND "natural" NOT IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
           )
-          AND "area_3857" > env.env_area * 0.000005
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND "natural" NOT IN ('bay', 'peninsula')
           AND (
@@ -419,6 +443,7 @@ CREATE OR REPLACE
         FROM "office", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -426,6 +451,7 @@ CREATE OR REPLACE
         FROM "playground", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND "leisure" IS NULL
           AND z >= 18
@@ -437,6 +463,7 @@ CREATE OR REPLACE
             geom_type = 'area'
             OR (geom_type = 'closed_way' AND "power" NOT IN ('cable', 'line', 'minor_line'))
           )
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -444,6 +471,7 @@ CREATE OR REPLACE
         FROM "public_transport", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -451,6 +479,7 @@ CREATE OR REPLACE
         FROM "railway", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND "public_transport" IS NULL 
           AND z >= 10
@@ -459,6 +488,7 @@ CREATE OR REPLACE
         FROM "shop", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "amenity" IS NULL
           AND "building" IS NULL
           AND z >= 10
@@ -470,6 +500,7 @@ CREATE OR REPLACE
             geom_type = 'area'
             OR (geom_type = 'closed_way' AND "telecom" NOT IN ('line'))
           )
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
@@ -477,6 +508,7 @@ CREATE OR REPLACE
         FROM "tourism", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
+          AND "area_3857" > min_area
           AND "information" IS NULL
           AND "building" IS NULL
           AND z >= 10
@@ -485,6 +517,7 @@ CREATE OR REPLACE
         FROM "waterway", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
+          AND "area_3857" > min_area
           AND "building" IS NULL
           AND z >= 10
     ),
