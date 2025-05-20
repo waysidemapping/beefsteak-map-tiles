@@ -282,7 +282,7 @@ CREATE OR REPLACE
         FROM "building", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
-          AND ("area_3857" = 0 OR "area_3857" > env.env_area * 0.000001)
+          AND ("area_3857" = 0 OR "area_3857" > env.env_area * 0.000005)
           AND z >= 14
       UNION ALL
         SELECT *
@@ -373,7 +373,7 @@ CREATE OR REPLACE
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
           AND "building" IS NULL
-          AND "area_3857" > env.env_area * 0.000001
+          AND "area_3857" > env.env_area * 0.000005
           AND z >= 10
       UNION ALL
         SELECT *
@@ -407,7 +407,7 @@ CREATE OR REPLACE
             geom_type = 'area'
             OR (geom_type = 'closed_way' AND "natural" NOT IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
           )
-          AND "area_3857" > env.env_area * 0.000001
+          AND "area_3857" > env.env_area * 0.000005
           AND "building" IS NULL
           AND "natural" NOT IN ('bay', 'peninsula')
           AND (
