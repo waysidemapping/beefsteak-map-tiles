@@ -217,7 +217,6 @@ utility
 vehicle
 voltage
 washing_machine
-water
 waterbody:name
 waterway:name
 wetland
