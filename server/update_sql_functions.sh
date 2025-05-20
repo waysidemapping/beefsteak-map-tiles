@@ -10,7 +10,7 @@ DB_NAME="osm"
 
 # Use the latest lists instead of the lists at import since all tags are present in the db, we're just filtering 
 JSONB_KEYS=$(cat $APP_DIR/helper_data/jsonb_field_keys.txt | sed "s/.*/'&'/" | paste -sd, -)
-JSONB_PREFIXES=$(awk '{print "OR key LIKE \x27" $0 ":%\x27"}' "$APP_DIR/helper_data/jsonb_field_prefixes.txt" | paste -sd' ' -)
+JSONB_PREFIXES=$(awk '{print "OR key LIKE \x27" $0 "%\x27"}' "$APP_DIR/helper_data/jsonb_field_prefixes.txt" | paste -sd' ' -)
 
 # Generate COLUMN_NAMES from the keys listed in the two text files used when creating the database
 COLUMN_NAMES=$(cat $SCRATCH_DIR/import_helper_data/column_keys.txt | sed 's/.*/"&"/' | paste -sd, -)
