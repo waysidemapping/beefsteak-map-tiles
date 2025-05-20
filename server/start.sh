@@ -137,7 +137,8 @@ else
     rm -f -- "$FLAT_NODES_FILE"
     # Copy the helper data we used during import to a persistent directory so it 
     # will remain unchanged over the lifetime of the database
-    cp -f -R helper_data "$SCRATCH_DIR/import_helper_data"
+    rm -rf "$SCRATCH_DIR/import_helper_data"
+    cp -R helper_data "$SCRATCH_DIR/import_helper_data"
 
     echo "Downloading the OSM Planet file..."
     if [ ! -f "$PLANET_FILE" ]; then
