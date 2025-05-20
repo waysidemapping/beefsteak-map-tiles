@@ -25,6 +25,7 @@
                 "fill-color": [
                     "case",
                     ["in", ["get", "natural"], ["literal", ["coastline", "water"]]], "Blue",
+                    ["has", "natural"], "Green",
                     "Black"
                 ],
                 "fill-opacity": 0.1
@@ -54,7 +55,8 @@
             "type": "line",
             "filter": ["in", ["get", "waterway"], ["literal", ["dam", "weir"]]],
             "paint": {
-                "line-color": "Black"
+                "line-color": "Black",
+                "line-opacity": 0.5
             }
         },
         {
@@ -64,7 +66,8 @@
             "type": "line",
             "filter": ["has", "barrier"],
             "paint": {
-                "line-color": "Black"
+                "line-color": "Black",
+                "line-opacity": 0.5
             }
         },
         {
@@ -100,7 +103,11 @@
             "type": "line",
             "filter": ["has", "highway"],
             "paint": {
-                "line-color": "Red",
+                "line-color": [
+                    "case",
+                    ["in", ["get", "highway"], ["literal", ["path", "footway", "cycleway", "bridleway", "cooridor"]]], "SaddleBrown",
+                    "Red"
+                ],
                 "line-opacity": 0.5
             }
         },
