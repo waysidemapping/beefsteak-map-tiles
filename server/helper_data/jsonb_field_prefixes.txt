@@ -4,6 +4,7 @@ lock_name
 monitoring
 mtb:name
 name
+oneway
 rapids:name
 tunnel:name
 waterbody:name
