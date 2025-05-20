@@ -551,9 +551,9 @@ CREATE OR REPLACE
             OR (z >= 10 AND ("highway" IN ('motorway_link', 'primary', 'primary_link', 'trunk_link')))
             OR (z >= 11 AND ("highway" IN ('secondary', 'secondary_link')))
             OR (z >= 12 AND ("highway" IN ('tertiary', 'tertiary_link', 'residential', 'unclassified')))
-            OR z >= 13
+            OR (z >= 13 AND NOT ("highway" = 'footway' AND "footway" IS NOT NULL))
+            OR z >= 15
           )
-          AND (z >= 15 OR "highway" != "footway" OR "footway" IS NULL)
       UNION ALL
         SELECT *
         FROM "historic", envelope env
