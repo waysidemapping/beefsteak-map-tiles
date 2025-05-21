@@ -22,6 +22,15 @@ COLUMN_NAMES_FOR_COASTLINE="$COLUMN_NAMES_FOR_COASTLINE,$(cat $SCRATCH_DIR/impor
 # Except for the attribute `natural=coastline` which we'll replace inline while keeping the column order
 COLUMN_NAMES_FOR_COASTLINE=$(echo "$COLUMN_NAMES_FOR_COASTLINE" | sed 's/NULL AS "natural"/'\''coastline'\'' AS "natural"/')
 
+COLS_LOW_Z_HIGHWAY=$(cat $SCRATCH_DIR/import_helper_data/sql_column_keys.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)
+COLS_LOW_Z_HIGHWAY="$COLS_LOW_Z_HIGHWAY,$(cat $SCRATCH_DIR/import_helper_data/sql_table_keys.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)"
+COLS_LOW_Z_HIGHWAY=$(echo "$COLS_LOW_Z_HIGHWAY" | sed 's/NULL AS "highway"/"highway"/')
+
+COLS_LOW_Z_RAILWAY=$(cat $SCRATCH_DIR/import_helper_data/sql_column_keys.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)
+COLS_LOW_Z_RAILWAY="$COLS_LOW_Z_RAILWAY,$(cat $SCRATCH_DIR/import_helper_data/sql_table_keys.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)"
+COLS_LOW_Z_RAILWAY=$(echo "$COLS_LOW_Z_RAILWAY" | sed 's/NULL AS "railway"/"railway"/')
+COLS_LOW_Z_RAILWAY=$(echo "$COLS_LOW_Z_RAILWAY" | sed 's/NULL AS "usage"/"usage"/')
+
 FIELD_DEFS="$(cat $SCRATCH_DIR/import_helper_data/sql_column_keys.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
 FIELD_DEFS="$FIELD_DEFS,$(cat $SCRATCH_DIR/import_helper_data/sql_table_keys.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
 
@@ -30,6 +39,8 @@ SQL_CONTENT=${SQL_CONTENT//\{\{JSONB_KEYS\}\}/$JSONB_KEYS}
 SQL_CONTENT=${SQL_CONTENT//\{\{JSONB_PREFIXES\}\}/$JSONB_PREFIXES}
 SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES\}\}/$COLUMN_NAMES}
 SQL_CONTENT=${SQL_CONTENT//\{\{COLUMN_NAMES_FOR_COASTLINE\}\}/$COLUMN_NAMES_FOR_COASTLINE}
+SQL_CONTENT=${SQL_CONTENT//\{\{COLS_LOW_Z_HIGHWAY\}\}/$COLS_LOW_Z_HIGHWAY}
+SQL_CONTENT=${SQL_CONTENT//\{\{COLS_LOW_Z_RAILWAY\}\}/$COLS_LOW_Z_RAILWAY}
 SQL_CONTENT=${SQL_CONTENT//\{\{FIELD_DEFS\}\}/$FIELD_DEFS}
 
 sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$SQL_CONTENT"

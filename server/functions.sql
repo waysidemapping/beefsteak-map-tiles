@@ -14,6 +14,7 @@ CREATE OR REPLACE
         ST_Area(env_geom) * 0.00001 AS min_area,
         (ST_XMax(env_geom) - ST_XMin(env_geom)) AS env_width,
         (ST_YMax(env_geom) - ST_YMin(env_geom)) AS env_height,
+        ((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2 AS simplify_tolerance,
 
         ST_XMax(env_geom) AS rightX,
         ST_XMin(env_geom) AS leftX,
@@ -231,7 +232,7 @@ CREATE OR REPLACE
       FROM coastline_all_closed_lines
     ),
     unioned_without_ocean AS (
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "aerialway", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
@@ -240,7 +241,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "aeroway", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -251,7 +252,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "advertising", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -259,7 +260,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "amenity", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -271,7 +272,7 @@ CREATE OR REPLACE
           AND z >= 10
           AND (z >= 18 OR ("amenity" NOT IN ('parking_space')))
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "area:highway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -279,7 +280,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 18
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "barrier", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
@@ -287,14 +288,14 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "building", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
           AND "area_3857" > min_area
           AND z >= 14
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "building:part", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -302,7 +303,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 18
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "club", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -310,7 +311,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "craft", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -318,7 +319,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "education", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -326,7 +327,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "emergency", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -334,7 +335,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "golf", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -344,7 +345,7 @@ CREATE OR REPLACE
           AND "natural" IS NULL
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "healthcare", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -352,7 +353,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "highway", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
@@ -362,7 +363,7 @@ CREATE OR REPLACE
           AND "public_transport" IS NULL 
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "historic", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -370,7 +371,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "indoor", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -380,7 +381,7 @@ CREATE OR REPLACE
           AND "area_3857" > min_area
           AND z >= 18
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "information", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -388,7 +389,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "landuse", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -397,15 +398,16 @@ CREATE OR REPLACE
           AND "area_3857" > min_area
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "leisure", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
           AND "area_3857" > min_area
+          AND "boundary" IS NULL
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "man_made", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -416,7 +418,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "military", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -424,7 +426,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "natural", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -435,11 +437,11 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND "natural" NOT IN ('bay', 'peninsula')
           AND (
-            (z >= 0 AND "natural" = 'water')
+            (z >= 0 AND "natural" = 'water' AND "water" IN ('lake', 'reservoir'))
             OR z >= 10
           )
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "office", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -447,7 +449,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "playground", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -456,7 +458,7 @@ CREATE OR REPLACE
           AND "leisure" IS NULL
           AND z >= 18
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "power", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -467,7 +469,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "public_transport", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -475,7 +477,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "railway", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
@@ -484,7 +486,7 @@ CREATE OR REPLACE
           AND "public_transport" IS NULL 
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "shop", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -493,7 +495,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "telecom", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -504,7 +506,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "tourism", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('area', 'closed_way')
@@ -513,7 +515,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND z >= 10
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "waterway", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'area'
@@ -522,9 +524,9 @@ CREATE OR REPLACE
           AND z >= 10
     ),
     unioned_area_features AS (
-        SELECT {{COLUMN_NAMES}}, tags, geom FROM unioned_without_ocean
+        SELECT id, {{COLUMN_NAMES}}, tags, geom FROM unioned_without_ocean
       UNION ALL
-        SELECT {{COLUMN_NAMES}}, '{}'::jsonb AS tags, geom FROM ocean
+        SELECT NULL AS id, {{COLUMN_NAMES}}, '{}'::jsonb AS tags, geom FROM ocean
     ),
     tagged_area_features AS (
       SELECT
@@ -542,14 +544,14 @@ CREATE OR REPLACE
       WHERE geom IS NOT NULL
     ),
     unioned_line_features AS (
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "aerialway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
           AND "highway" IS NULL 
           AND z >= 13
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "aeroway", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -559,7 +561,7 @@ CREATE OR REPLACE
           AND "highway" IS NULL 
           AND z >= 13
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "barrier", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
@@ -567,35 +569,42 @@ CREATE OR REPLACE
           AND z >= 13
       
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "golf", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'line'
           AND "highway" IS NULL 
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT NULL AS id, {{COLS_LOW_Z_HIGHWAY}}, '{}'::jsonb AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), simplify_tolerance, true) AS geom
+        FROM "highway", envelope env
+        WHERE geom && env.env_geom
+        AND geom_type IN ('line', 'closed_way')
+        AND z < 10
+        AND "highway" IN ('motorway', 'trunk')
+        GROUP BY "highway", simplify_tolerance
+      UNION ALL
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "highway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
+          AND z >= 10
           AND (
-            (z >= 4 AND ("highway" IN ('motorway') OR "expressway" = 'yes'))
-            OR (z >= 6 AND ("highway" IN ('trunk')))
-            OR (z >= 10 AND ("highway" IN ('motorway_link', 'primary', 'primary_link', 'trunk_link')))
-            OR (z >= 11 AND ("highway" IN ('secondary', 'secondary_link')))
-            OR (z >= 12 AND ("highway" IN ('tertiary', 'tertiary_link', 'residential', 'unclassified')))
+            ("highway" IN ('motorway', 'trunk', 'motorway_link', 'trunk_link', 'primary'))
+            OR (z >= 11 AND ("highway" IN ('primary_link', 'secondary')))
+            OR (z >= 12 AND ("highway" IN ('secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified')))
             OR (z >= 13 AND NOT ("highway" = 'footway' AND "footway" IS NOT NULL))
             OR z >= 15
           )
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "historic", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'line'
           AND "highway" IS NULL 
           AND z >= 13
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "indoor", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -604,7 +613,7 @@ CREATE OR REPLACE
           )
           AND z >= 18
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "man_made", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -614,7 +623,7 @@ CREATE OR REPLACE
           AND "highway" IS NULL 
           AND z >= 13
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "natural", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -625,7 +634,7 @@ CREATE OR REPLACE
           AND "natural" NOT IN ('bay', 'peninsula')
           AND z >= 13
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "power", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -635,30 +644,40 @@ CREATE OR REPLACE
           AND "highway" IS NULL 
           AND z >= 13
       UNION ALL
-        SELECT *
+        SELECT NULL AS id, {{COLS_LOW_Z_RAILWAY}}, '{}'::jsonb AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), simplify_tolerance, true) AS geom
         FROM "railway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
+          AND z < 10
+          AND "highway" IS NULL 
+          AND "railway" = 'rail'
+          AND "service" IS NULL
+          AND (
+            "usage" = 'main'
+            OR (z >= 8 AND "usage" = 'branch')
+          )
+          GROUP BY "railway", "usage", simplify_tolerance
+      UNION ALL
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
+        FROM "railway", envelope env
+        WHERE geom && env.env_geom
+          AND geom_type IN ('line', 'closed_way')
+          AND z >= 10
           AND "highway" IS NULL 
           AND ("railway" NOT IN ('abandoned', 'razed', 'proposed'))
-          AND (
-            (z >= 4 AND ("railway" = 'rail' AND "usage" = 'main'))
-            OR (z >= 8 AND ("railway" = 'rail' AND "usage" IN ('main', 'branch')))
-            OR (z >= 10 AND ("service" IS NULL))
-            OR z >= 13
-          )
+          AND (z >= 13 OR "service" IS NULL)
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "route", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
           AND "highway" IS NULL 
           AND (
-            (z >= 4 AND ("route" IN ('ferry')))
+            "route" = 'ferry'
             OR z >= 13
           )
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "telecom", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -668,13 +687,13 @@ CREATE OR REPLACE
           AND "highway" IS NULL 
           AND z >= 13
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "waterway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
           AND "highway" IS NULL 
           AND (
-            (z >= 6 AND ("waterway" = 'river'))
+            (z >= 8 AND ("waterway" = 'river'))
             OR z >= 10
           )
     ),
@@ -694,13 +713,13 @@ CREATE OR REPLACE
       WHERE geom IS NOT NULL
     ),
     unioned_point_features AS (
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "aerialway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area')
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "aeroway", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -711,13 +730,13 @@ CREATE OR REPLACE
           AND (z >= 12 OR ("aeroway" = 'aerodrome' AND "aerodrome" = 'international'))
           AND (z >= 15 OR ("aeroway" NOT IN ('gate', 'navigationaid', 'windsock')))
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "advertising", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "amenity", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
@@ -732,57 +751,56 @@ CREATE OR REPLACE
           -- micromapped stuff
           AND (z >= 18 OR ("amenity" NOT IN ('parking_space')))
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "barrier", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area')
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "boundary", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND "boundary" IN ('protected_area', 'aboriginal_lands')
-          AND z >= 4
           AND (z >= 12 OR "area_3857" > env.env_area * 0.005)
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "club", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "craft", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "education", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "emergency", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "golf", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "healthcare", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "highway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area')
@@ -790,13 +808,13 @@ CREATE OR REPLACE
           AND "public_transport" IS NULL
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "historic", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "indoor", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -805,26 +823,27 @@ CREATE OR REPLACE
           )
           AND z >= 18
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "information", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "landuse", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "leisure", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
+          AND "boundary" IS NULL
           AND z >= 12
           AND (z >= 15 OR "leisure" NOT IN ('firepit', 'picnic_table', 'sauna'))
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "man_made", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -834,13 +853,13 @@ CREATE OR REPLACE
           AND z >= 12
           AND (z >= 15 OR "man_made" NOT IN ('flagpole', 'manhole', 'utility_pole'))
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "military", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')           
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "natural", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -850,13 +869,13 @@ CREATE OR REPLACE
           AND z >= 12
           AND (z >= 15 OR "natural" NOT IN ('rock', 'shrub', 'stone', 'termite_mound', 'tree', 'tree_stump'))
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "office", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "place", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
@@ -872,14 +891,14 @@ CREATE OR REPLACE
             OR z >= 12
           )
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "playground", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND "leisure" IS NULL
           AND z >= 18
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "power", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -888,27 +907,27 @@ CREATE OR REPLACE
           )
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "public_transport", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "railway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area')
           AND "public_transport" IS NULL 
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "shop", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND "amenity" IS NULL
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "telecom", envelope env
         WHERE geom && env.env_geom
           AND (
@@ -917,14 +936,14 @@ CREATE OR REPLACE
           )
           AND z >= 15
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "tourism", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area', 'closed_way')
           AND "information" IS NULL
           AND z >= 12
       UNION ALL
-        SELECT *
+        SELECT id, {{COLUMN_NAMES}}, tags, geom
         FROM "waterway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area')
