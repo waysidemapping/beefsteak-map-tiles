@@ -669,10 +669,7 @@ CREATE OR REPLACE
           AND "highway" IS NULL 
           AND "railway" = 'rail'
           AND "service" IS NULL
-          AND (
-            "usage" = 'main'
-            OR (z >= 8 AND "usage" = 'branch')
-          )
+          AND "usage" IN ('main', 'branch')
           GROUP BY "railway", "usage", simplify_tolerance
       UNION ALL
         SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
