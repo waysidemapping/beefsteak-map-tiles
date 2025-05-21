@@ -8,6 +8,7 @@ footway
 landmark
 order:strahler
 population
+protected_area
 residential
 usage
 service

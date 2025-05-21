@@ -14,14 +14,14 @@ local coastline_table = osm2pgsql.define_table{
     }
 }
 
-local file = io.open(helperDataDir .. "column_keys.txt", "r")
+local file = io.open(helperDataDir .. "sql_column_keys.txt", "r")
 local file_string = file:read("*all")
 file:close()
 for key in file_string:gmatch("[^\r\n]+") do
     column_keys[key] = true
 end
 
-file = io.open(helperDataDir .. "table_keys.txt", "r")
+file = io.open(helperDataDir .. "sql_table_keys.txt", "r")
 file_string = file:read("*all")
 file:close()
 for key in file_string:gmatch("[^\r\n]+") do

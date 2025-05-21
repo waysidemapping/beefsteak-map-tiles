@@ -85,6 +85,9 @@ information
 inline_skates
 intermittent
 internet_access
+internet_access:fee
+internet_access:ssid
+internet_access:password
 jetski
 junction
 kerb
@@ -151,7 +154,6 @@ portage
 power
 power_supply
 protect_class
-protected_area
 protection_title
 public_transport
 ramp

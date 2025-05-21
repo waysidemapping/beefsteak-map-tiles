@@ -13,17 +13,17 @@ JSONB_KEYS=$(cat $APP_DIR/helper_data/jsonb_field_keys.txt | sed "s/.*/'&'/" | p
 JSONB_PREFIXES=$(awk '{print "OR key LIKE \x27" $0 "%\x27"}' "$APP_DIR/helper_data/jsonb_field_prefixes.txt" | paste -sd' ' -)
 
 # Generate COLUMN_NAMES from the keys listed in the two text files used when creating the database
-COLUMN_NAMES=$(cat $SCRATCH_DIR/import_helper_data/column_keys.txt | sed 's/.*/"&"/' | paste -sd, -)
-COLUMN_NAMES="$COLUMN_NAMES,$(cat $SCRATCH_DIR/import_helper_data/table_keys.txt | sed 's/.*/"&"/' | paste -sd, -)"
+COLUMN_NAMES=$(cat $SCRATCH_DIR/import_helper_data/sql_column_keys.txt | sed 's/.*/"&"/' | paste -sd, -)
+COLUMN_NAMES="$COLUMN_NAMES,$(cat $SCRATCH_DIR/import_helper_data/sql_table_keys.txt | sed 's/.*/"&"/' | paste -sd, -)"
 
 # Coastlines are derived so we want to set all the attributes to NULL
-COLUMN_NAMES_FOR_COASTLINE=$(cat $SCRATCH_DIR/import_helper_data/column_keys.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)
-COLUMN_NAMES_FOR_COASTLINE="$COLUMN_NAMES_FOR_COASTLINE,$(cat $SCRATCH_DIR/import_helper_data/table_keys.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)"
+COLUMN_NAMES_FOR_COASTLINE=$(cat $SCRATCH_DIR/import_helper_data/sql_column_keys.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)
+COLUMN_NAMES_FOR_COASTLINE="$COLUMN_NAMES_FOR_COASTLINE,$(cat $SCRATCH_DIR/import_helper_data/sql_table_keys.txt | sed 's/.*/NULL AS "&"/' | paste -sd, -)"
 # Except for the attribute `natural=coastline` which we'll replace inline while keeping the column order
 COLUMN_NAMES_FOR_COASTLINE=$(echo "$COLUMN_NAMES_FOR_COASTLINE" | sed 's/NULL AS "natural"/'\''coastline'\'' AS "natural"/')
 
-FIELD_DEFS="$(cat $SCRATCH_DIR/import_helper_data/column_keys.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
-FIELD_DEFS="$FIELD_DEFS,$(cat $SCRATCH_DIR/import_helper_data/table_keys.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
+FIELD_DEFS="$(cat $SCRATCH_DIR/import_helper_data/sql_column_keys.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
+FIELD_DEFS="$FIELD_DEFS,$(cat $SCRATCH_DIR/import_helper_data/sql_table_keys.txt | sed 's/.*/"&":"String"/' | paste -sd, -)"
 
 SQL_CONTENT=$(<"$SQL_FUNCTIONS_FILE")
 SQL_CONTENT=${SQL_CONTENT//\{\{JSONB_KEYS\}\}/$JSONB_KEYS}

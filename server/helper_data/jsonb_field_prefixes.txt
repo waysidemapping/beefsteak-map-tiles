@@ -1,11 +1,16 @@
 bridge:name:
+communication:
+currency:
 diet:
+drink:
+fuel:
 lock_name:
 monitoring:
 mtb:name:
 name:
 oneway:
 rapids:name:
+recycling:
 tunnel:name:
 waterbody:name:
 waterway:name:
