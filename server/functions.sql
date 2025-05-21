@@ -584,7 +584,6 @@ CREATE OR REPLACE
           AND geom_type IN ('line', 'closed_way')
           AND "highway" IS NULL 
           AND z >= 13
-      
       UNION ALL
         SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "golf", envelope env
@@ -598,7 +597,7 @@ CREATE OR REPLACE
         WHERE geom && env.env_geom
         AND geom_type IN ('line', 'closed_way')
         AND z < 10
-        AND "highway" IN ('motorway', 'trunk')
+        AND "highway" IN ('motorway', 'trunk', 'motorway_link', 'trunk_link', 'primary')
         GROUP BY "highway", simplify_tolerance
       UNION ALL
         SELECT id, {{COLUMN_NAMES}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
@@ -607,7 +606,7 @@ CREATE OR REPLACE
           AND geom_type IN ('line', 'closed_way')
           AND z >= 10
           AND (
-            ("highway" IN ('motorway', 'trunk', 'motorway_link', 'trunk_link', 'primary'))
+            "highway" IN ('motorway', 'trunk', 'motorway_link', 'trunk_link', 'primary')
             OR (z >= 11 AND ("highway" IN ('primary_link', 'secondary')))
             OR (z >= 12 AND ("highway" IN ('secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified')))
             OR (z >= 13 AND NOT ("highway" = 'footway' AND "footway" IS NOT NULL))
