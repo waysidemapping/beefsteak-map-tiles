@@ -1,12 +1,9 @@
 CREATE OR REPLACE
-  FUNCTION function_get_rustic_tile(z integer, x integer, y integer)
-  RETURNS bytea
+  FUNCTION function_get_ocean_for_tile(env_geom geometry)
+  RETURNS TABLE(geom geometry)
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
-  AS $function_body$
+  AS $ocean_function_body$
   WITH
-    raw_envelope AS (
-      SELECT ST_TileEnvelope(z, x, y) AS env_geom
-    ),
     envelope AS (
       SELECT 
         env_geom,
@@ -26,9 +23,6 @@ CREATE OR REPLACE
         ST_SetSRID(ST_Point(ST_XMax(env_geom), ST_YMax(env_geom)), 3857) AS topRight,
         ST_SetSRID(ST_Point(ST_XMin(env_geom), ST_YMin(env_geom)), 3857) AS bottomLeft,
         ST_SetSRID(ST_Point(ST_XMax(env_geom), ST_YMin(env_geom)), 3857) AS bottomRight
-      FROM raw_envelope
-      -- Be super sure that this table will only have one row or else we'll incur lots of unexpected cross joins
-      LIMIT 1
     ),
     -- Coastlines in OSM are expected to always be mapped as ways bounding the ocean
     -- on their right side. All ways must be connected by their endpoints without gaps
@@ -226,12 +220,33 @@ CREATE OR REPLACE
         SELECT geom
         FROM coastline_merged_segments
         WHERE ST_IsClosed(geom)
-    ),
+    )
     -- Turn the closed lines into polygons and collect them into a single multipolygon without
     -- doing any expensive geometry-based processing.
-    ocean AS (
-      SELECT {{COLS_COASTLINE}}, ST_Collect(ST_MakePolygon(geom)) AS geom
-      FROM coastline_all_closed_lines
+    SELECT ST_Collect(ST_MakePolygon(geom)) AS geom
+    FROM coastline_all_closed_lines
+$ocean_function_body$;
+
+CREATE OR REPLACE
+  FUNCTION function_get_area_layer_for_tile(z integer, x integer, y integer)
+  RETURNS bytea
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+  AS $area_function_body$
+  WITH
+    raw_envelope AS (
+      SELECT ST_TileEnvelope(z, x, y) AS env_geom
+    ),
+    envelope AS (
+      SELECT 
+        env_geom,
+        ST_Area(env_geom) AS env_area,
+        ST_Area(env_geom) * 0.00001 AS min_area,
+        ST_Area(env_geom) * 0.0005 AS boundary_min_area,
+        (ST_XMax(env_geom) - ST_XMin(env_geom)) AS env_width,
+        ((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2 AS simplify_tolerance
+      FROM raw_envelope
+      -- Be super sure that this table will only have one row or else we'll incur lots of unexpected cross joins
+      LIMIT 1
     ),
     unioned_without_ocean AS (
         SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
@@ -535,7 +550,7 @@ CREATE OR REPLACE
     unioned_area_features AS (
         SELECT id, {{COLS}}, tags, geom FROM unioned_without_ocean
       UNION ALL
-        SELECT NULL AS id, {{COLS}}, '{}'::jsonb AS tags, geom FROM ocean
+        SELECT NULL AS id, {{COLS_COASTLINE}}, '{}'::jsonb AS tags, geom FROM function_get_ocean_for_tile((SELECT env_geom FROM envelope))
     ),
     tagged_area_features AS (
       SELECT
@@ -567,6 +582,30 @@ CREATE OR REPLACE
         ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
       FROM tagged_area_features, envelope env
       WHERE geom IS NOT NULL
+    )
+    SELECT ST_AsMVT(tile, 'area', 4096, 'geom') AS mvt FROM mvt_area_features AS tile
+$area_function_body$;
+
+CREATE OR REPLACE
+  FUNCTION function_get_line_layer_for_tile(z integer, x integer, y integer)
+  RETURNS bytea
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+  AS $line_function_body$
+  WITH
+    raw_envelope AS (
+      SELECT ST_TileEnvelope(z, x, y) AS env_geom
+    ),
+    envelope AS (
+      SELECT 
+        env_geom,
+        ST_Area(env_geom) AS env_area,
+        ST_Area(env_geom) * 0.00001 AS min_area,
+        ST_Area(env_geom) * 0.0005 AS boundary_min_area,
+        (ST_XMax(env_geom) - ST_XMin(env_geom)) AS env_width,
+        ((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2 AS simplify_tolerance
+      FROM raw_envelope
+      -- Be super sure that this table will only have one row or else we'll incur lots of unexpected cross joins
+      LIMIT 1
     ),
     unioned_line_features AS (
         SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
@@ -747,6 +786,30 @@ CREATE OR REPLACE
         ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
       FROM tagged_line_features, envelope env
       WHERE geom IS NOT NULL
+    )
+    SELECT ST_AsMVT(tile, 'line', 4096, 'geom') AS mvt FROM mvt_line_features AS tile
+$line_function_body$;
+
+CREATE OR REPLACE
+  FUNCTION function_get_point_layer_for_tile(z integer, x integer, y integer)
+  RETURNS bytea
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+  AS $point_function_body$
+  WITH
+    raw_envelope AS (
+      SELECT ST_TileEnvelope(z, x, y) AS env_geom
+    ),
+    envelope AS (
+      SELECT 
+        env_geom,
+        ST_Area(env_geom) AS env_area,
+        ST_Area(env_geom) * 0.00001 AS min_area,
+        ST_Area(env_geom) * 0.0005 AS boundary_min_area,
+        (ST_XMax(env_geom) - ST_XMin(env_geom)) AS env_width,
+        ((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2 AS simplify_tolerance
+      FROM raw_envelope
+      -- Be super sure that this table will only have one row or else we'll incur lots of unexpected cross joins
+      LIMIT 1
     ),
     unioned_point_features AS (
         SELECT id, {{COLS}}, tags, geom, label_node_id
@@ -1018,13 +1081,22 @@ CREATE OR REPLACE
         ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
       FROM tagged_point_features, envelope env
       WHERE geom IS NOT NULL
-    ),
+    )
+    SELECT ST_AsMVT(tile, 'point', 4096, 'geom') AS mvt FROM mvt_point_features AS tile
+$point_function_body$;
+
+CREATE OR REPLACE
+  FUNCTION function_get_rustic_tile(z integer, x integer, y integer)
+  RETURNS bytea
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+  AS $function_body$
+  WITH
     tiles AS (
-        SELECT ST_AsMVT(tile, 'area', 4096, 'geom') AS mvt FROM mvt_area_features AS tile
+        SELECT function_get_area_layer_for_tile(z, x, y) AS mvt
       UNION ALL
-        SELECT ST_AsMVT(tile, 'line', 4096, 'geom') AS mvt FROM mvt_line_features AS tile
+        SELECT function_get_line_layer_for_tile(z, x, y) AS mvt
       UNION ALL
-        SELECT ST_AsMVT(tile, 'point', 4096, 'geom') AS mvt FROM mvt_point_features AS tile
+        SELECT function_get_point_layer_for_tile(z, x, y) AS mvt
     )
     SELECT string_agg(mvt, ''::bytea) FROM tiles;
 $function_body$;
