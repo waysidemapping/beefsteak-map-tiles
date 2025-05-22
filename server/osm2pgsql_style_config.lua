@@ -107,17 +107,15 @@ function loadMultipolygonGeometry(object, row)
 end
 
 function loadTags(object, row)
-    row["tags"] = {}
     for k, v in pairs(object.tags) do
         if column_keys[k] then
             -- don't copy in negative values like `building=no` (troll tag) for top-level tags (unless it can be an attribute)
             if not (table_keys[k] and v == 'no' and not no_is_attribute[k]) then
                 row[k] = v
             end
-        else
-            row["tags"][k] = v
         end
     end
+    row["tags"] = object.tags
 end
 
 function processObject(object, loadGeometry)
