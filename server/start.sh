@@ -13,6 +13,8 @@ MARTIN_CONFIG_FILE="martin_config.yaml"
 DB_NAME="osm"
 DB_USER="osmuser"
 TABLE_PREFIX="planet_osm"
+OSM2PGSQL_VERSION="2.1.1"
+OSM2PGSQL_DIR="/usr/local/osm2pgsql"
 
 # Create helper directory
 if [ ! -d "$SCRATCH_DIR" ]; then
@@ -48,13 +50,61 @@ else
 fi
 
 # Install git: needed to clone repos
-# if ! command -v git &> /dev/null; then
-#     echo "Git is not installed. Installing..."
-#     sudo apt update
-#     sudo apt install -y git
-# else
-#     echo "Git is installed."
-# fi
+if ! command -v git &> /dev/null; then
+    echo "Git is not installed. Installing..."
+    sudo apt update
+    sudo apt install -y git
+else
+    echo "Git is installed."
+fi
+
+is_osm2pgsql_not_installed() {
+    if command -v osm2pgsql >/dev/null 2>&1; then
+        INSTALLED_VERSION=$(osm2pgsql --version | grep -oP '\d+\.\d+\.\d+')
+        if [ "$INSTALLED_VERSION" == "$OSM2PGSQL_VERSION" ]; then
+            echo "osm2pgsql $OSM2PGSQL_VERSION is already installed."
+        else
+            echo "osm2pgsql is installed but version $INSTALLED_VERSION != $OSM2PGSQL_VERSION"
+        fi
+        return 1
+    else
+        echo "osm2pgsql is not installed."
+    fi
+    return 0
+}
+
+if is_osm2pgsql_not_installed; then
+    # We need to build osm2pgsql from source since the bundled version is too old
+    echo "Cloning and building osm2pgsql $OSM2PGSQL_VERSION..."
+    
+    echo "Installing dependencies..."
+    sudo apt update
+    sudo apt install -y \
+        make cmake g++ libboost-dev \
+        libexpat1-dev zlib1g-dev libpotrace-dev \
+        libopencv-dev libbz2-dev libpq-dev libproj-dev lua5.3 liblua5.3-dev \
+        pandoc nlohmann-json3-dev pyosmium
+
+    git clone https://github.com/openstreetmap/osm2pgsql.git
+    cd osm2pgsql
+    git fetch --tags
+    git checkout "tags/$OSM2PGSQL_VERSION" -b "build-$OSM2PGSQL_VERSION"
+    mkdir build
+    cd build
+    cmake -DCMAKE_INSTALL_PREFIX="$OSM2PGSQL_DIR" ..
+    make -j$(nproc)
+    make install
+
+    cd ..
+    cd ..
+    rm -rf "osm2pgsql"
+
+    export PATH="${OSM2PGSQL_DIR}/bin:$PATH"
+
+    osm2pgsql --version
+
+    echo "osm2pgsql $OSM2PGSQL_VERSION installed at $OSM2PGSQL_DIR."
+fi
 
 # Install PostgreSQL
 if command -v psql > /dev/null; then
@@ -93,20 +143,6 @@ else
         echo "Failed to start or restart PostgreSQL."
         exit 1
     fi
-fi
-
-# Install osm2pgsql
-if command -v osm2pgsql >/dev/null 2>&1; then
-    echo "osm2pgsql is already installed: $(osm2pgsql --version | head -n 1)"
-else
-    echo "osm2pgsql is not installed. Installing..."
-
-    sudo apt update
-
-    echo "Installing osm2pgsql..."
-    sudo apt install -y osm2pgsql
-
-    echo "osm2pgsql installation complete: $(osm2pgsql --version | head -n 1)"
 fi
 
 # Setup database
@@ -156,7 +192,7 @@ else
 
     echo "Running import..."
     # These options are documented but are not needed with flex output: --merc --multi-geometry --keep-coastlines
-    sudo -u "$DB_USER" osm2pgsql \
+    sudo -u "$DB_USER" env PATH="${OSM2PGSQL_DIR}/bin:$PATH" osm2pgsql \
         -d "$DB_NAME" \
         -U "$DB_USER" \
         --create \
