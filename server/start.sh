@@ -13,6 +13,7 @@ MARTIN_CONFIG_FILE="martin_config.yaml"
 DB_NAME="osm"
 DB_USER="osmuser"
 TABLE_PREFIX="planet_osm"
+PG_VERSION="17"
 OSM2PGSQL_VERSION="2.1.1"
 OSM2PGSQL_DIR="/usr/local/osm2pgsql"
 
@@ -114,8 +115,13 @@ else
 
     sudo apt update
 
-    echo "Installing PostgreSQL and PostGIS from default repositories..."
-    sudo apt install -y postgresql postgresql-contrib postgis
+    sudo apt install -y postgresql-common
+    yes "" | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+
+    sudo apt update
+
+    echo "Installing PostgreSQL $PG_VERSION and PostGIS..."
+    sudo apt install -y postgresql-$PG_VERSION postgresql-contrib-$PG_VERSION postgis
 fi
 
 # Start PostgreSQL
