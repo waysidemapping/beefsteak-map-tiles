@@ -6,6 +6,7 @@ cycleway
 expressway
 footway
 landmark
+name
 order:strahler
 population
 protected_area
