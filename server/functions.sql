@@ -652,6 +652,7 @@ CREATE OR REPLACE
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
           AND z >= 10
+          AND ("highway" NOT IN ('abandoned', 'razed', 'proposed'))
           AND (
             "highway" IN ('motorway', 'trunk', 'motorway_link', 'trunk_link', 'primary')
             OR (z >= 11 AND ("highway" IN ('primary_link', 'secondary')))
