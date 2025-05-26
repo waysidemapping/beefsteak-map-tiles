@@ -5,7 +5,7 @@ CREATE OR REPLACE
   AS $ocean_function_body$
   WITH
     envelope AS (
-      SELECT 
+      SELECT
         env_geom,
         ST_Area(env_geom) AS env_area,
         ST_Area(env_geom) * 0.00001 AS min_area,
@@ -27,10 +27,10 @@ CREATE OR REPLACE
     -- Coastlines in OSM are expected to always be mapped as ways bounding the ocean
     -- on their right side. All ways must be connected by their endpoints without gaps
     -- to fully inscribe continents and islands.
-    -- 
+    --
     -- Using these assumptions, we can form a a multipolygon geometry for each tile
     -- that represents the filled ocean area without needing to pre-render the entire ocean.
-    -- 
+    --
     -- First, we fetch all the coastlines in the tile and clip them to the bounds of the tile.
     coastline_raw AS (
       SELECT ST_Intersection(geom, env.env_geom) AS geom
@@ -58,7 +58,7 @@ CREATE OR REPLACE
     ),
     -- We'll close the open segments by matching every endpoint with a startpoint and adding a
     -- path between them along the perimeter of the tile. Each pair of terminus points may not
-    -- necessary belong to the same open segment. 
+    -- necessary belong to the same open segment.
     --
     -- We'll start by creating a single table containing all the startpoints and endpoints of the open segments.
     coastline_open_segment_terminus_points AS (
@@ -72,7 +72,7 @@ CREATE OR REPLACE
     coastline_open_segment_terminus_points_ordered AS (
       SELECT *, ROW_NUMBER() OVER (
       ORDER BY
-        CASE 
+        CASE
           WHEN x = leftX THEN
             (y - bottomY) / env_width
           WHEN y = topY THEN
@@ -216,7 +216,7 @@ CREATE OR REPLACE
         SELECT geom
         FROM coastline_manually_closed_segments
         WHERE ST_IsClosed(geom)
-      UNION ALL 
+      UNION ALL
         SELECT geom
         FROM coastline_merged_segments
         WHERE ST_IsClosed(geom)
@@ -237,7 +237,7 @@ CREATE OR REPLACE
       SELECT ST_TileEnvelope(z, x, y) AS env_geom
     ),
     envelope AS (
-      SELECT 
+      SELECT
         env_geom,
         ST_Area(env_geom) AS env_area,
         ST_Area(env_geom) * 0.00001 AS min_area,
@@ -285,7 +285,7 @@ CREATE OR REPLACE
           AND "building" IS NULL
           AND "education" IS NULL
           AND "healthcare" IS NULL
-          AND "public_transport" IS NULL 
+          AND "public_transport" IS NULL
           AND z >= 10
           AND (z >= 18 OR ("amenity" NOT IN ('parking_space')))
       UNION ALL
@@ -384,7 +384,7 @@ CREATE OR REPLACE
           AND "area_3857" > min_area
           AND "amenity" IS NULL
           AND "building" IS NULL
-          AND "public_transport" IS NULL 
+          AND "public_transport" IS NULL
           AND z >= 10
       UNION ALL
         SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
@@ -507,7 +507,7 @@ CREATE OR REPLACE
           AND geom_type = 'area'
           AND "area_3857" > min_area
           AND "building" IS NULL
-          AND "public_transport" IS NULL 
+          AND "public_transport" IS NULL
           AND z >= 10
       UNION ALL
         SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
@@ -564,7 +564,7 @@ CREATE OR REPLACE
       GROUP BY id, {{COLS}}, geom
     ),
     mvt_area_features AS (
-      SELECT 
+      SELECT
         CASE
           WHEN id IS NULL THEN NULL
           WHEN id > 0 THEN 'n'
@@ -596,7 +596,7 @@ CREATE OR REPLACE
       SELECT ST_TileEnvelope(z, x, y) AS env_geom
     ),
     envelope AS (
-      SELECT 
+      SELECT
         env_geom,
         ST_Area(env_geom) AS env_area,
         ST_Area(env_geom) * 0.00001 AS min_area,
@@ -612,7 +612,7 @@ CREATE OR REPLACE
         FROM "aerialway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND z >= 13
       UNION ALL
         SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
@@ -622,21 +622,21 @@ CREATE OR REPLACE
             geom_type = 'line'
             OR (geom_type = 'closed_way' AND "aeroway" IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))
           )
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND z >= 13
       UNION ALL
         SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "barrier", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND z >= 13
       UNION ALL
         SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
         FROM "golf", envelope env
         WHERE geom && env.env_geom
           AND geom_type = 'line'
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND z >= 15
       UNION ALL
         SELECT NULL AS id, {{COLS_LOW_Z_HIGHWAY}}, '{}'::jsonb AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), simplify_tolerance, true) AS geom
@@ -677,7 +677,7 @@ CREATE OR REPLACE
             geom_type = 'line'
             OR (geom_type = 'closed_way' AND "man_made" IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
           )
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND z >= 13
       UNION ALL
         SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
@@ -687,7 +687,7 @@ CREATE OR REPLACE
             geom_type = 'line'
             OR (geom_type = 'closed_way' AND "natural" IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
           )
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND "natural" NOT IN ('bay', 'peninsula')
           AND z >= 13
       UNION ALL
@@ -698,7 +698,7 @@ CREATE OR REPLACE
             geom_type = 'line'
             OR (geom_type = 'closed_way' AND "power" IN ('cable', 'line', 'minor_line'))
           )
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND z >= 13
       UNION ALL
         SELECT NULL AS id, {{COLS_LOW_Z_RAILWAY}}, '{}'::jsonb AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), simplify_tolerance, true) AS geom
@@ -706,7 +706,7 @@ CREATE OR REPLACE
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
           AND z < 10
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND "railway" = 'rail'
           AND "service" IS NULL
           AND "usage" IN ('main', 'branch')
@@ -717,7 +717,7 @@ CREATE OR REPLACE
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
           AND z >= 10
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND ("railway" NOT IN ('abandoned', 'razed', 'proposed'))
           AND (z >= 13 OR "service" IS NULL)
       UNION ALL
@@ -725,7 +725,7 @@ CREATE OR REPLACE
         FROM "route", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND (
             "route" = 'ferry'
             OR z >= 13
@@ -738,7 +738,7 @@ CREATE OR REPLACE
             geom_type = 'line'
             OR (geom_type = 'closed_way' AND "telecom" IN ('line'))
           )
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND z >= 13
       UNION ALL
         SELECT NULL AS id, {{COLS_LOW_Z_WATERWAY}}, '{}'::jsonb AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), simplify_tolerance, false) AS geom
@@ -746,7 +746,7 @@ CREATE OR REPLACE
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
           AND z < 10
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
           AND "waterway" IN ('river', 'flowline')
         GROUP BY "waterway", "name", simplify_tolerance
       UNION ALL
@@ -755,11 +755,11 @@ CREATE OR REPLACE
         WHERE geom && env.env_geom
           AND geom_type IN ('line', 'closed_way')
           AND z >= 10
-          AND "highway" IS NULL 
+          AND "highway" IS NULL
     ),
     tagged_line_features AS (
       SELECT
-        id, 
+        id,
         {{COLS}},
         jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}}) AS tags,
         geom
@@ -769,7 +769,7 @@ CREATE OR REPLACE
       GROUP BY id, {{COLS}}, geom
     ),
     mvt_line_features AS (
-      SELECT 
+      SELECT
         CASE
           WHEN id IS NULL THEN NULL
           WHEN id > 0 THEN 'n'
@@ -801,7 +801,7 @@ CREATE OR REPLACE
       SELECT ST_TileEnvelope(z, x, y) AS env_geom
     ),
     envelope AS (
-      SELECT 
+      SELECT
         env_geom,
         ST_Area(env_geom) AS env_area,
         ST_Area(env_geom) * 0.00001 AS min_area,
@@ -825,7 +825,7 @@ CREATE OR REPLACE
           AND (
             geom_type IN ('point', 'area')
             OR (geom_type = 'closed_way' AND "aeroway" NOT IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))
-          )            
+          )           
           AND z >= 8
           AND (z >= 12 OR ("aeroway" = 'aerodrome' AND "aerodrome" = 'international'))
           AND (z >= 15 OR ("aeroway" NOT IN ('gate', 'navigationaid', 'windsock')))
@@ -842,7 +842,7 @@ CREATE OR REPLACE
           AND geom_type IN ('point', 'area', 'closed_way')
           AND "education" IS NULL
           AND "healthcare" IS NULL
-          AND "public_transport" IS NULL 
+          AND "public_transport" IS NULL
           AND z >= 12
           -- small stuff that may be associated with a larger facility
           AND (z >= 14 OR ("amenity" NOT IN ('atm', 'bbq', 'bicycle_parking', 'drinking_water', 'fountain', 'parcel_locker', 'post_box', 'public_bookcase', 'telephone', 'ticket_validator', 'toilets', 'shower', 'vending_machine', 'waste_disposal')))
@@ -951,14 +951,14 @@ CREATE OR REPLACE
           AND (
             geom_type IN ('point', 'area')
             OR (geom_type = 'closed_way' AND "man_made" NOT IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
-          )            
+          )           
           AND z >= 12
           AND (z >= 15 OR "man_made" NOT IN ('flagpole', 'manhole', 'utility_pole'))
       UNION ALL
         SELECT id, {{COLS}}, tags, geom, label_node_id
         FROM "military", envelope env
         WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')           
+          AND geom_type IN ('point', 'area', 'closed_way')          
           AND z >= 12
       UNION ALL
         SELECT id, {{COLS}}, tags, geom, label_node_id
@@ -1022,7 +1022,7 @@ CREATE OR REPLACE
         FROM "railway", envelope env
         WHERE geom && env.env_geom
           AND geom_type IN ('point', 'area')
-          AND "public_transport" IS NULL 
+          AND "public_transport" IS NULL
           AND z >= 15
       UNION ALL
         SELECT id, {{COLS}}, tags, geom, label_node_id
