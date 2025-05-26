@@ -654,8 +654,7 @@ CREATE OR REPLACE
           AND z >= 10
           AND ("highway" NOT IN ('abandoned', 'razed', 'proposed'))
           AND (
-            "highway" IN ('motorway', 'trunk', 'motorway_link', 'trunk_link', 'primary')
-            OR (z >= 11 AND ("highway" IN ('primary_link', 'secondary')))
+            "highway" IN ('motorway', 'trunk', 'motorway_link', 'trunk_link', 'primary', 'primary_link', 'secondary')
             OR (z >= 12 AND ("highway" IN ('secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified')))
             OR (z >= 13 AND NOT ("highway" = 'footway' AND "footway" IS NOT NULL))
             OR z >= 15
