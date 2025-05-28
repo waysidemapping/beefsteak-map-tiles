@@ -13,7 +13,8 @@ CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
         (ST_YMax(%1$L::geometry) - ST_YMin(%1$L::geometry)) AS env_height,
         ((ST_XMax(%1$L::geometry) - ST_XMin(%1$L::geometry)))/4096 * 2 AS simplify_tolerance,
 
-        -- A VERY skinny bounding box stretching from the bottom left corner of the envelope to the interior of Antarctica
+        -- A VERY skinny bounding box stretching from the bottom left corner of the envelope
+        -- to the interior of Antarctica (roughly -85° Lat)
         ST_MakeEnvelope(ST_XMin(%1$L::geometry), -20000000, ST_XMin(%1$L::geometry) + 0.000000001, ST_YMin(%1$L::geometry), 3857) AS tile_to_antarctica_bbox,
 
         ST_XMax(%1$L::geometry) AS rightX,
