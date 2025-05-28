@@ -27,12 +27,12 @@ CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
         ST_SetSRID(ST_Point(ST_XMin(%1$L::geometry), ST_YMin(%1$L::geometry)), 3857) AS bottomLeft,
         ST_SetSRID(ST_Point(ST_XMax(%1$L::geometry), ST_YMin(%1$L::geometry)), 3857) AS bottomRight
     ),
-    -- Coastlines in OSM are expected to always be mapped as ways bounding the ocean
-    -- on their right side. All ways must be connected by their endpoints without gaps
-    -- to fully inscribe continents and islands.
+    -- Coastlines in OpenStreetMap are expected to always be mapped as ways bounding the ocean
+    -- on their right side (winding counterclockwise). All ways must be connected by their endpoints
+    -- without gaps to fully inscribe continents and islands. No coastlines should be wound clockwise.
     --
-    -- Using these assumptions, we can form a a multipolygon geometry for each tile
-    -- that represents the filled ocean area without needing to pre-render the entire ocean.
+    -- Using these assumptions, we can form a a multipolygon geometry for each tile that represents
+    -- the filled ocean area without needing to pre-render the entire ocean.
     --
     -- First, we fetch all the coastlines in the tile and clip them to the bounds of the tile.
     coastline_raw AS (
@@ -213,16 +213,23 @@ CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
       SELECT (ST_Dump(ST_Multi(ST_LineMerge(ST_Multi(ST_Collect(geom)))))).geom AS geom
       FROM coastline_open_segments_and_closure_lines
     ),
-    -- Combine the segments we manually closed those that were already closed (i.e. islands that
+    coastline_already_closed_segments AS (
+      SELECT geom FROM coastline_merged_segments WHERE ST_IsClosed(geom)
+    ),
+    -- Combine the segments we manually closed with those that were already closed (i.e. islands that
     -- are fully contained by the tile).
     coastline_all_closed_lines AS (
-        SELECT geom
-        FROM coastline_manually_closed_segments
+        SELECT geom FROM coastline_manually_closed_segments
         WHERE ST_IsClosed(geom)
       UNION ALL
-        SELECT geom
-        FROM coastline_merged_segments
-        WHERE ST_IsClosed(geom)
+        SELECT geom FROM coastline_already_closed_segments
+      UNION ALL
+        -- If the tile fully contains at least one island but doesn't have
+        -- any coastline intesecting the edge of the tile then we need to
+        -- add the tile bounding box as an exterior ring
+        SELECT ST_Boundary(%1$L::geometry) AS geom
+        WHERE (SELECT count(geom) FROM coastline_open_segments) = 0
+          AND (SELECT count(geom) FROM coastline_already_closed_segments LIMIT 1) > 0
     ),
     -- Turn the closed lines into polygons and collect them into a single multipolygon without
     -- doing any expensive geometry-based processing. This is our finished feature.
@@ -263,7 +270,7 @@ CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
     SELECT
       CASE
         -- If there are coastlines in the tile then use our computed multipolygon
-        WHEN (SELECT count(geom) FROM coastline_all_closed_lines) > 0 THEN
+        WHEN (SELECT count(geom) FROM coastline_all_closed_lines LIMIT 1) > 0 THEN
           geom
         ELSE
           -- Use a case to try and avoid computing the blank ocean logic if we don't need to
