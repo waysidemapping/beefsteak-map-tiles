@@ -58,3 +58,9 @@ To apply changes to `functions.sql` while the container (and Postgres) are runni
 ```
 docker exec -i rustic-dev-container /usr/src/app/update_sql_functions.sh
 ```
+
+To run a custom SQL query in the database (useful for debugging), run:
+
+```
+docker exec -i rustic-dev-container sudo -u postgres psql -U postgres -d osm -c "yourquery"
+```

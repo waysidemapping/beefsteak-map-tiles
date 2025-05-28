@@ -1,28 +1,27 @@
-CREATE OR REPLACE
-  FUNCTION function_get_ocean_for_tile(env_geom geometry)
+CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
   RETURNS TABLE(geom geometry)
-  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
-  AS $ocean_function_body$
-  WITH
+  LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+  AS $$
+  BEGIN
+  RETURN QUERY EXECUTE format($fmt$
+    WITH
     envelope AS (
       SELECT
-        env_geom,
-        ST_Area(env_geom) AS env_area,
-        ST_Area(env_geom) * 0.00001 AS min_area,
-        ST_Area(env_geom) * 0.0005 AS boundary_min_area,
-        (ST_XMax(env_geom) - ST_XMin(env_geom)) AS env_width,
-        (ST_YMax(env_geom) - ST_YMin(env_geom)) AS env_height,
-        ((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2 AS simplify_tolerance,
+        %1$L::geometry AS env_geom,
+        ST_Area(%1$L::geometry) * 0.00001 AS min_area,
+        (ST_XMax(%1$L::geometry) - ST_XMin(%1$L::geometry)) AS env_width,
+        (ST_YMax(%1$L::geometry) - ST_YMin(%1$L::geometry)) AS env_height,
+        ((ST_XMax(%1$L::geometry) - ST_XMin(%1$L::geometry)))/4096 * 2 AS simplify_tolerance,
 
-        ST_XMax(env_geom) AS rightX,
-        ST_XMin(env_geom) AS leftX,
-        ST_YMax(env_geom) AS topY,
-        ST_YMin(env_geom) AS bottomY,
+        ST_XMax(%1$L::geometry) AS rightX,
+        ST_XMin(%1$L::geometry) AS leftX,
+        ST_YMax(%1$L::geometry) AS topY,
+        ST_YMin(%1$L::geometry) AS bottomY,
 
-        ST_SetSRID(ST_Point(ST_XMin(env_geom), ST_YMax(env_geom)), 3857) AS topLeft,
-        ST_SetSRID(ST_Point(ST_XMax(env_geom), ST_YMax(env_geom)), 3857) AS topRight,
-        ST_SetSRID(ST_Point(ST_XMin(env_geom), ST_YMin(env_geom)), 3857) AS bottomLeft,
-        ST_SetSRID(ST_Point(ST_XMax(env_geom), ST_YMin(env_geom)), 3857) AS bottomRight
+        ST_SetSRID(ST_Point(ST_XMin(%1$L::geometry), ST_YMax(%1$L::geometry)), 3857) AS topLeft,
+        ST_SetSRID(ST_Point(ST_XMax(%1$L::geometry), ST_YMax(%1$L::geometry)), 3857) AS topRight,
+        ST_SetSRID(ST_Point(ST_XMin(%1$L::geometry), ST_YMin(%1$L::geometry)), 3857) AS bottomLeft,
+        ST_SetSRID(ST_Point(ST_XMax(%1$L::geometry), ST_YMin(%1$L::geometry)), 3857) AS bottomRight
     ),
     -- Coastlines in OSM are expected to always be mapped as ways bounding the ocean
     -- on their right side. All ways must be connected by their endpoints without gaps
@@ -33,9 +32,9 @@ CREATE OR REPLACE
     --
     -- First, we fetch all the coastlines in the tile and clip them to the bounds of the tile.
     coastline_raw AS (
-      SELECT ST_Intersection(geom, env.env_geom) AS geom
+      SELECT ST_Intersection(geom, env_geom) AS geom
       FROM "coastline", envelope env
-      WHERE geom && env.env_geom
+      WHERE geom && env_geom
         -- Ignore very small islands. This will not work if the island is mapped using more than one way.
         AND ("area_3857" = 0 OR "area_3857" > min_area)
     ),
@@ -113,7 +112,7 @@ CREATE OR REPLACE
       SELECT t1.p as endP, t2.p as startP, t1.x as endX, t2.x as startX, t1.y as endY, t2.y as startY
       FROM coastline_open_segment_terminus_points_ordered_w_first_end t1
       JOIN coastline_open_segment_terminus_points_ordered_w_first_end t2 ON t2.rn = t1.rn + 1
-      WHERE t1.rn % 2 = 1
+      WHERE mod(t1.rn, 2) = 1
     ),
     -- Calculate the array of points needed to connect the endpoint with the startpoint
     -- along the perimeter of the tile based on their relative positions. This could be
@@ -225,878 +224,592 @@ CREATE OR REPLACE
     -- doing any expensive geometry-based processing.
     SELECT ST_Collect(ST_MakePolygon(geom)) AS geom
     FROM coastline_all_closed_lines
-$ocean_function_body$;
+    ;
+  $fmt$, env_geom);
+END;
+$$;
 
-CREATE OR REPLACE
-  FUNCTION function_get_area_layer_for_tile(z integer, x integer, y integer)
+CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geometry, min_area real, min_notable_area real, simplify_tolerance real)
+  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _osm_type text)
+  LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+  AS $$
+  BEGIN
+  RETURN QUERY EXECUTE format($fmt$
+  WITH
+    closed_ways AS (
+      SELECT id, tags, geom, area_3857 FROM way
+      WHERE geom && %2$L
+        AND is_closed = true
+        AND area_3857 > %3$L
+    ),
+    way_areas AS (
+        SELECT id, tags, geom, area_3857 FROM closed_ways
+        WHERE tags @> '{"area": "yes"}'
+      UNION ALL
+        SELECT id, tags, geom, area_3857 FROM closed_ways
+        WHERE NOT tags @> '{"area": "no"}'
+          AND NOT tags ? 'aerialway'
+          AND NOT tags ? 'barrier'
+          AND NOT tags ? 'highway'
+          AND NOT tags ? 'railway'
+          AND NOT tags ? 'route'
+          AND NOT tags ? 'waterway'
+          AND NOT tags @> '{"aeroway": "jet_bridge"}'
+          AND NOT tags @> '{"aeroway": "parking_position"}'
+          AND NOT tags @> '{"aeroway": "runway"}'
+          AND NOT tags @> '{"aeroway": "taxiway"}'
+          AND NOT tags @> '{"indoor": "wall"}'
+          AND NOT tags @> '{"man_made": "breakwater"}'
+          AND NOT tags @> '{"man_made": "cutline"}'
+          AND NOT tags @> '{"man_made": "dyke"}'
+          AND NOT tags @> '{"man_made": "embankment"}'
+          AND NOT tags @> '{"man_made": "gantry"}'
+          AND NOT tags @> '{"man_made": "goods_conveyor"}'
+          AND NOT tags @> '{"man_made": "groyne"}'
+          AND NOT tags @> '{"man_made": "pier"}'
+          AND NOT tags @> '{"man_made": "pipeline"}'
+          AND NOT tags @> '{"natural": "cliff"}'
+          AND NOT tags @> '{"natural": "gorge"}'
+          AND NOT tags @> '{"natural": "ridge"}'
+          AND NOT tags @> '{"natural": "strait"}'
+          AND NOT tags @> '{"natural": "tree_row"}'
+          AND NOT tags @> '{"natural": "valley"}'
+          AND NOT tags @> '{"power": "line"}'
+          AND NOT tags @> '{"power": "minor_line"}'
+          AND NOT tags @> '{"power": "cable"}'
+          AND NOT tags @> '{"telecom": "line"}'
+    ),
+    relation_areas AS (
+      SELECT id, tags, geom, area_3857 FROM area_relation
+      WHERE geom && %2$L
+        AND area_3857 > %3$L
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    ),
+    areas AS (
+        SELECT id, tags, geom, area_3857, 'w' AS osm_type FROM way_areas
+      UNION ALL
+        SELECT id, tags, geom, area_3857, 'r' AS osm_type FROM relation_areas
+    ),
+    non_buildings AS (
+      SELECT * FROM areas WHERE NOT tags ? 'building'
+    ),
+    filtered_non_buildings AS (
+      SELECT * FROM non_buildings
+      WHERE tags ? 'aerialway'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'aeroway'
+        AND (%1$L >= 12 OR area_3857 > %4$L OR (%1$L >= 6 AND tags @> '{"aeroway": "aerodrome"}' AND tags @> '{"aerodrome": "international"}'))
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'advertising'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'amenity'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'barrier'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'club'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'craft'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'education'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'emergency'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'golf'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'healthcare'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'highway'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'historic'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'information'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'leisure'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'man_made'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'miltary'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'office'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'power'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'public_transport'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'railway'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'shop'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'telecom'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'tourism'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'waterway'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE (tags @> '{"boundary": "protected_area"}'
+        OR tags @> '{"boundary": "aboriginal_lands"}')
+        AND NOT tags ? 'leisure'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'area:highway'
+        AND %1$L >= 18
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'building:part'
+        AND %1$L >= 18
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'indoor'
+        AND %1$L >= 18
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'playground'
+        AND %1$L >= 18
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'landuse'
+        AND %1$L >= 10
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'natural'
+        AND NOT tags @> '{"natural": "bay"}'
+        AND NOT tags @> '{"natural": "peninsula"}'
+        AND NOT tags @> '{"natural": "coastline"}'
+        AND NOT tags @> '{"natural": "water"}'
+        AND %1$L >= 10
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags @> '{"natural": "water"}'
+        AND (%1$L >= 12 OR area_3857 > %4$L)
+    ),
+    filtered_areas AS (
+        SELECT * FROM filtered_non_buildings
+      UNION ALL
+        SELECT * FROM areas
+        WHERE tags ? 'building'
+          AND %1$L >= 14
+          AND (%1$L >= 17 OR area_3857 > %4$L)
+    )
+    SELECT id, tags, ST_Simplify(geom, %5$L, true) AS geom, osm_type FROM filtered_areas
+    ;
+  $fmt$, z, env_geom, min_area, min_notable_area, simplify_tolerance);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION function_get_area_layer_for_tile(z integer, env_geom geometry)
   RETURNS bytea
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $area_function_body$
   WITH
-    raw_envelope AS (
-      SELECT ST_TileEnvelope(z, x, y) AS env_geom
-    ),
-    envelope AS (
-      SELECT
-        env_geom,
-        ST_Area(env_geom) AS env_area,
-        ST_Area(env_geom) * 0.00001 AS min_area,
-        ST_Area(env_geom) * 0.0005 AS boundary_min_area,
-        (ST_XMax(env_geom) - ST_XMin(env_geom)) AS env_width,
-        ((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2 AS simplify_tolerance
-      FROM raw_envelope
-      -- Be super sure that this table will only have one row or else we'll incur lots of unexpected cross joins
-      LIMIT 1
-    ),
-    unioned_without_ocean AS (
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "aerialway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type = 'area'
-          AND "area_3857" > min_area
-          AND "public_transport" IS NULL
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "aeroway", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'area'
-            OR (geom_type = 'closed_way' AND "aeroway" NOT IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))
-          )
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "advertising", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "amenity", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND "education" IS NULL
-          AND "healthcare" IS NULL
-          AND "public_transport" IS NULL
-          AND z >= 10
-          AND (z >= 18 OR ("amenity" NOT IN ('parking_space')))
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "area:highway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 18
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "barrier", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type = 'area'
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "boundary", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "boundary" IN ('protected_area', 'aboriginal_lands')
-          AND ((z >= 10 AND "area_3857" > min_area) OR "area_3857" > boundary_min_area)
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "building", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND z >= 14
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "building:part", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 18
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "club", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "craft", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "education", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "emergency", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "golf", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND "landuse" IS NULL
-          AND "natural" IS NULL
-          AND z >= 15
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "healthcare", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "highway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type = 'area'
-          AND "area_3857" > min_area
-          AND "amenity" IS NULL
-          AND "building" IS NULL
-          AND "public_transport" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "historic", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "indoor", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'area'
-            OR (geom_type = 'closed_way' AND "indoor" NOT IN ('wall'))
-          )
-          AND "area_3857" > min_area
-          AND z >= 18
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "information", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "landuse", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND "area_3857" > min_area
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "leisure", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "boundary" IS NULL
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "man_made", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'area'
-            OR (geom_type = 'closed_way' AND "man_made" NOT IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
-          )
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "military", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "natural", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'area'
-            OR (geom_type = 'closed_way' AND "natural" NOT IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
-          )
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND "natural" NOT IN ('bay', 'peninsula')
-          AND (
-            (z >= 0 AND "natural" = 'water' AND "water" IN ('lake', 'reservoir'))
-            OR z >= 10
-          )
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "office", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "playground", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND "leisure" IS NULL
-          AND z >= 18
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "power", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'area'
-            OR (geom_type = 'closed_way' AND "power" NOT IN ('cable', 'line', 'minor_line'))
-          )
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "public_transport", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "railway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type = 'area'
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND "public_transport" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "shop", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "amenity" IS NULL
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "telecom", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'area'
-            OR (geom_type = 'closed_way' AND "telecom" NOT IN ('line'))
-          )
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "tourism", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('area', 'closed_way')
-          AND "area_3857" > min_area
-          AND "information" IS NULL
-          AND "building" IS NULL
-          AND z >= 10
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "waterway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type = 'area'
-          AND "area_3857" > min_area
-          AND "building" IS NULL
-          AND z >= 10
+    area_features_without_ocean AS (
+      SELECT _id AS id, _tags AS tags, _geom AS geom, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, (ST_Area(env_geom) * 0.00001)::real, 0::real, (((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2)::real)
     ),
     unioned_area_features AS (
-        SELECT id, {{COLS}}, tags, geom FROM unioned_without_ocean
+        SELECT id, tags, geom, osm_type FROM area_features_without_ocean
       UNION ALL
-        SELECT NULL AS id, {{COLS_COASTLINE}}, '{}'::jsonb AS tags, geom FROM function_get_ocean_for_tile((SELECT env_geom FROM envelope))
+        SELECT NULL AS id, '{"natural": "coastline"}'::jsonb AS tags, geom, NULL AS osm_type FROM function_get_ocean_for_tile(env_geom)
     ),
     tagged_area_features AS (
       SELECT
         id,
-        {{COLS}},
         jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}}) AS tags,
-        geom
+        geom,
+        osm_type
       FROM unioned_area_features
       LEFT JOIN LATERAL jsonb_each(tags) AS t(key, value) ON true
-      WHERE geom IS NOT NULL
-      GROUP BY id, {{COLS}}, geom
+      GROUP BY id, geom, osm_type
     ),
     mvt_area_features AS (
       SELECT
-        CASE
-          WHEN id IS NULL THEN NULL
-          WHEN id > 0 THEN 'n'
-          WHEN id > -100000000000000000 THEN 'w'
-          ELSE 'r'
-        END AS osm_type,
-        CASE
-          WHEN id IS NULL THEN NULL
-          WHEN id > 0 THEN id
-          WHEN id > -100000000000000000 THEN -id
-          ELSE -id - 100000000000000000
-        END AS osm_id,
-        {{COLS}},
+        osm_type,
+        id AS osm_id,
         tags,
-        ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
-      FROM tagged_area_features, envelope env
-      WHERE geom IS NOT NULL
+        ST_AsMVTGeom(geom, env_geom, 4096, 64, true) AS geom
+      FROM tagged_area_features
     )
     SELECT ST_AsMVT(tile, 'area', 4096, 'geom') AS mvt FROM mvt_area_features AS tile
 $area_function_body$;
 
-CREATE OR REPLACE
-  FUNCTION function_get_line_layer_for_tile(z integer, x integer, y integer)
+CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geometry, simplify_tolerance real)
+  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry)
+  LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+  AS $$
+    BEGIN
+    IF z < 10 THEN
+      RETURN QUERY EXECUTE format($fmt$
+      WITH
+        -- NOT MATERIALIZED is needed so postgres will inline the query and combine our `geom` and `tags` indexes when selecting. Otherwise this can be very slow.
+        ways_in_tile AS NOT MATERIALIZED (
+          SELECT id, tags, geom FROM way WHERE geom && %2$L
+        )
+        SELECT NULL::int8 AS id, jsonb_build_object('highway', tags->>'highway') AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %3$L, true) AS geom
+        FROM ways_in_tile
+        WHERE
+          tags @> '{"highway": "motorway"}'
+          OR tags @> '{"highway": "trunk"}'
+          OR tags @> '{"highway": "motorway_link"}'
+          OR tags @> '{"highway": "trunk_link"}'
+          OR tags @> '{"highway": "primary"}'
+        GROUP BY tags->>'highway'
+      UNION ALL
+        SELECT NULL::int8 AS id, jsonb_build_object('railway', tags->>'railway', 'usage', tags->>'usage') AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %3$L, true) AS geom
+        FROM ways_in_tile
+        WHERE tags @> '{"railway": "rail"}'
+          AND NOT tags ? 'service'
+          AND (
+            tags @> '{"usage": "main"}'
+            OR tags @> '{"usage": "branch"}'
+          )
+          GROUP BY tags->>'railway', tags->>'usage'
+      UNION ALL
+        SELECT id, tags, ST_Simplify(geom, %3$L, true) AS geom
+        FROM ways_in_tile
+        WHERE tags @> '{"route": "ferry"}'
+      UNION ALL
+        SELECT NULL::int8 AS id, jsonb_build_object('waterway', tags->>'waterway') AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %3$L, false) AS geom
+        FROM ways_in_tile
+        WHERE tags @> '{"waterway": "river"}'
+          OR tags @> '{"waterway": "flowline"}'
+        GROUP BY tags->>'waterway', tags->>'name'
+      ;
+      $fmt$, z, env_geom, simplify_tolerance);
+    ELSE
+      RETURN QUERY EXECUTE format($fmt$
+      WITH
+      ways_in_tile AS (
+          SELECT id, is_closed, tags, geom FROM way WHERE geom && %2$L
+      ),
+      lines_in_tile AS (
+          SELECT id, tags, geom FROM ways_in_tile
+          WHERE NOT tags @> '{"area": "yes"}'
+            AND (NOT is_closed OR (is_closed AND (
+              tags @> '{"area": "no"}'
+              OR tags ? 'aerialway'
+              OR tags ? 'barrier'
+              OR tags ? 'highway'
+              OR tags ? 'railway'
+              OR tags ? 'route'
+              OR tags ? 'waterway'
+              OR tags @> '{"aeroway": "jet_bridge"}'
+              OR tags @> '{"aeroway": "parking_position"}'
+              OR tags @> '{"aeroway": "runway"}'
+              OR tags @> '{"aeroway": "taxiway"}'
+              OR tags @> '{"indoor": "wall"}'
+              OR tags @> '{"man_made": "breakwater"}'
+              OR tags @> '{"man_made": "cutline"}'
+              OR tags @> '{"man_made": "dyke"}'
+              OR tags @> '{"man_made": "embankment"}'
+              OR tags @> '{"man_made": "gantry"}'
+              OR tags @> '{"man_made": "goods_conveyor"}'
+              OR tags @> '{"man_made": "groyne"}'
+              OR tags @> '{"man_made": "pier"}'
+              OR tags @> '{"man_made": "pipeline"}'
+              OR tags @> '{"natural": "cliff"}'
+              OR tags @> '{"natural": "gorge"}'
+              OR tags @> '{"natural": "ridge"}'
+              OR tags @> '{"natural": "strait"}'
+              OR tags @> '{"natural": "tree_row"}'
+              OR tags @> '{"natural": "valley"}'
+              OR tags @> '{"power": "line"}'
+              OR tags @> '{"power": "minor_line"}'
+              OR tags @> '{"power": "cable"}'
+              OR tags @> '{"telecom": "line"}'
+            ))
+          )
+      ),
+      filtered_lines AS (
+        SELECT * FROM lines_in_tile
+        WHERE tags ?| array['aerialway', 'aeroway', 'barrier', 'man_made', 'power', 'route', 'telecom', 'waterway']
+          AND NOT tags ? 'highway'
+          AND %1$L >= 13
+      UNION ALL
+        SELECT * FROM lines_in_tile
+        WHERE tags ? 'natural'
+          AND NOT tags ? 'highway'
+          AND NOT tags @> '{"natural": "coastline"}'
+          AND %1$L >= 13
+      UNION ALL
+        SELECT * FROM lines_in_tile
+        WHERE tags ? 'golf'
+          AND NOT tags ? 'highway'
+          AND %1$L >= 15
+      UNION ALL
+        SELECT * FROM lines_in_tile
+        WHERE tags ? 'highway'
+          AND (
+            (
+              tags @> '{"highway": "motorway"}'
+              OR tags @> '{"highway": "motorway_link"}'
+              OR tags @> '{"highway": "trunk"}'
+              OR tags @> '{"highway": "trunk_link"}'
+              OR tags @> '{"highway": "primary"}'
+              OR tags @> '{"highway": "primary_link"}'
+              OR tags @> '{"highway": "secondary"}'
+            )
+            OR (%1$L >= 12 AND (
+              tags @> '{"highway": "secondary_link"}'
+              OR tags @> '{"highway": "tertiary"}'
+              OR tags @> '{"highway": "tertiary_link"}'
+              OR tags @> '{"highway": "residential"}'
+              OR tags @> '{"highway": "unclassified"}'
+            ))
+            OR (%1$L >= 13 AND NOT (tags @> '{"highway": "footway"}' AND tags ? 'footway'))
+            OR %1$L >= 15
+          )
+      UNION ALL
+        SELECT * FROM lines_in_tile
+        WHERE tags ? 'indoor'
+          AND NOT tags @> '{"indoor": "yes"}'
+          AND NOT tags @> '{"indoor": "no"}'
+          AND NOT tags @> '{"indoor": "unknown"}'
+          AND NOT tags ? 'highway'
+          AND %1$L >= 18
+      UNION ALL
+        SELECT * FROM lines_in_tile
+        WHERE tags ? 'railway'
+          AND NOT tags ? 'highway'
+          AND (%1$L >= 13 OR NOT tags ? 'service')
+      UNION ALL
+        SELECT * FROM lines_in_tile
+        WHERE tags ? 'waterway'
+          AND NOT tags ? 'highway'
+      )
+      SELECT id, tags, ST_Simplify(geom, %3$L, true) AS geom FROM filtered_lines
+    ;
+    $fmt$, z, env_geom, simplify_tolerance);
+  END IF;
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION function_get_line_layer_for_tile(z integer, env_geom geometry)
   RETURNS bytea
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $line_function_body$
   WITH
-    raw_envelope AS (
-      SELECT ST_TileEnvelope(z, x, y) AS env_geom
-    ),
-    envelope AS (
-      SELECT
-        env_geom,
-        ST_Area(env_geom) AS env_area,
-        ST_Area(env_geom) * 0.00001 AS min_area,
-        ST_Area(env_geom) * 0.0005 AS boundary_min_area,
-        (ST_XMax(env_geom) - ST_XMin(env_geom)) AS env_width,
-        ((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2 AS simplify_tolerance
-      FROM raw_envelope
-      -- Be super sure that this table will only have one row or else we'll incur lots of unexpected cross joins
-      LIMIT 1
-    ),
-    unioned_line_features AS (
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "aerialway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('line', 'closed_way')
-          AND "highway" IS NULL
-          AND z >= 13
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "aeroway", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'line'
-            OR (geom_type = 'closed_way' AND "aeroway" IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))
-          )
-          AND "highway" IS NULL
-          AND z >= 13
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "barrier", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('line', 'closed_way')
-          AND "highway" IS NULL
-          AND z >= 13
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "golf", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type = 'line'
-          AND "highway" IS NULL
-          AND z >= 15
-      UNION ALL
-        SELECT NULL AS id, {{COLS_LOW_Z_HIGHWAY}}, '{}'::jsonb AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), simplify_tolerance, true) AS geom
-        FROM "highway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('line', 'closed_way')
-          AND z < 10
-          AND "highway" IN ('motorway', 'trunk', 'motorway_link', 'trunk_link', 'primary')
-        GROUP BY "highway", simplify_tolerance
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "highway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('line', 'closed_way')
-          AND z >= 10
-          AND ("highway" NOT IN ('abandoned', 'razed', 'proposed'))
-          AND (
-            "highway" IN ('motorway', 'trunk', 'motorway_link', 'trunk_link', 'primary', 'primary_link', 'secondary')
-            OR (z >= 12 AND ("highway" IN ('secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified')))
-            OR (z >= 13 AND NOT ("highway" = 'footway' AND "footway" IS NOT NULL))
-            OR z >= 15
-          )
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "indoor", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'line'
-            OR (geom_type = 'closed_way' AND "indoor" IN ('wall'))
-          )
-          AND z >= 18
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "man_made", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'line'
-            OR (geom_type = 'closed_way' AND "man_made" IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
-          )
-          AND "highway" IS NULL
-          AND z >= 13
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "natural", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'line'
-            OR (geom_type = 'closed_way' AND "natural" IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
-          )
-          AND "highway" IS NULL
-          AND "natural" NOT IN ('bay', 'peninsula')
-          AND z >= 13
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "power", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'line'
-            OR (geom_type = 'closed_way' AND "power" IN ('cable', 'line', 'minor_line'))
-          )
-          AND "highway" IS NULL
-          AND z >= 13
-      UNION ALL
-        SELECT NULL AS id, {{COLS_LOW_Z_RAILWAY}}, '{}'::jsonb AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), simplify_tolerance, true) AS geom
-        FROM "railway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('line', 'closed_way')
-          AND z < 10
-          AND "highway" IS NULL
-          AND "railway" = 'rail'
-          AND "service" IS NULL
-          AND "usage" IN ('main', 'branch')
-          GROUP BY "railway", "usage", simplify_tolerance
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "railway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('line', 'closed_way')
-          AND z >= 10
-          AND "highway" IS NULL
-          AND ("railway" NOT IN ('abandoned', 'dismantled', 'razed', 'proposed'))
-          AND (z >= 13 OR "service" IS NULL)
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "route", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('line', 'closed_way')
-          AND "highway" IS NULL
-          AND (
-            "route" = 'ferry'
-            OR z >= 13
-          )
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "telecom", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type = 'line'
-            OR (geom_type = 'closed_way' AND "telecom" IN ('line'))
-          )
-          AND "highway" IS NULL
-          AND z >= 13
-      UNION ALL
-        SELECT NULL AS id, {{COLS_LOW_Z_WATERWAY}}, '{}'::jsonb AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), simplify_tolerance, false) AS geom
-        FROM "waterway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('line', 'closed_way')
-          AND z < 10
-          AND "highway" IS NULL
-          AND "waterway" IN ('river', 'flowline')
-        GROUP BY "waterway", "name", simplify_tolerance
-      UNION ALL
-        SELECT id, {{COLS}}, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom
-        FROM "waterway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('line', 'closed_way')
-          AND z >= 10
-          AND "highway" IS NULL
+    line_features AS (
+      SELECT _id AS id, _tags AS tags, _geom AS geom FROM function_get_line_features(z, env_geom, (((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2)::real)
     ),
     tagged_line_features AS (
       SELECT
         id,
-        {{COLS}},
         jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}}) AS tags,
         geom
-      FROM unioned_line_features
+      FROM line_features
       LEFT JOIN LATERAL jsonb_each(tags) AS t(key, value) ON true
-      WHERE geom IS NOT NULL
-      GROUP BY id, {{COLS}}, geom
+      GROUP BY id, geom
     ),
     mvt_line_features AS (
       SELECT
         CASE
           WHEN id IS NULL THEN NULL
-          WHEN id > 0 THEN 'n'
-          WHEN id > -100000000000000000 THEN 'w'
-          ELSE 'r'
+          ELSE 'w'
         END AS osm_type,
-        CASE
-          WHEN id IS NULL THEN NULL
-          WHEN id > 0 THEN id
-          WHEN id > -100000000000000000 THEN -id
-          ELSE -id - 100000000000000000
-        END AS osm_id,
-        {{COLS}},
+        id AS osm_id,
         tags,
-        ST_AsMVTGeom(geom, env.env_geom, 4096, 64, true) AS geom
-      FROM tagged_line_features, envelope env
-      WHERE geom IS NOT NULL
+        ST_AsMVTGeom(geom, env_geom, 4096, 64, true) AS geom
+      FROM tagged_line_features
     )
     SELECT ST_AsMVT(tile, 'line', 4096, 'geom') AS mvt FROM mvt_line_features AS tile
 $line_function_body$;
 
-CREATE OR REPLACE
-  FUNCTION function_get_point_layer_for_tile(z integer, x integer, y integer)
+CREATE OR REPLACE FUNCTION function_get_node_features(z integer, env_geom geometry)
+  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry)
+  LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+  AS $$
+    BEGIN
+    RETURN QUERY EXECUTE format($fmt$
+    WITH
+    points_in_tile AS (
+      SELECT id, tags, geom FROM node
+      WHERE geom && %2$L
+    )
+    SELECT * FROM points_in_tile
+      WHERE tags ?| array['advertising', 'club', 'craft', 'education', 'emergency', 'healthcare', 'historic', 'miltary', 'office', 'shop', 'waterway']
+        AND %1$L >= 12
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'tourism'
+        AND NOT tags @> '{"tourism": "information"}'
+        AND %1$L >= 12
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE (
+          tags @> '{"boundary": "protected_area"}'
+          OR tags @> '{"boundary": "aboriginal_lands"}'
+        )
+        AND NOT tags ? 'leisure'
+        AND %1$L >= 12
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags @> '{"public_transport": "station"}'
+        AND %1$L >= 12
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'public_transport'
+      AND NOT tags @> '{"public_transport": "station"}'
+        AND %1$L >= 15
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ?| array['aerialway', 'barrier', 'golf', 'highway', 'information', 'power', 'railway', 'telecom']
+        AND %1$L >= 15
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'indoor'
+        AND %1$L >= 18
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'playground'
+        AND NOT tags ? 'leisure'
+        AND %1$L >= 18
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'aeroway'
+        AND %1$L >= 6
+        AND (%1$L >= 12 OR (tags @> '{"aeroway": "aerodrome"}' AND tags @> '{"aerodrome": "international"}'))
+        AND (%1$L >= 15 OR (tags->>'aeroway' NOT IN ('gate', 'navigationaid', 'windsock')))
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'amenity'
+        AND NOT tags ? 'education'
+        AND NOT tags ? 'healthcare'
+        AND NOT tags ? 'public_transport'
+        AND %1$L >= 12
+        -- small stuff that may be associated with a larger facility
+        AND (%1$L >= 14 OR (tags->>'amenity' NOT IN ('atm', 'bbq', 'bicycle_parking', 'drinking_water', 'fountain', 'parcel_locker', 'post_box', 'public_bookcase', 'telephone', 'ticket_validator', 'toilets', 'shower', 'vending_machine', 'waste_disposal')))
+        -- smaller stuff
+        AND (%1$L >= 15 OR (tags->>'amenity' NOT IN ('bench', 'letter_box', 'lounger', 'recycling', 'waste_basket')))
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'leisure'
+        AND %1$L >= 12
+        AND (%1$L >= 15 OR tags->>'leisure' NOT IN ('firepit', 'picnic_table', 'sauna'))
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'man_made' 
+        AND %1$L >= 12
+        AND (%1$L >= 15 OR tags->>'man_made' NOT IN ('flagpole', 'manhole', 'utility_pole'))
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'natural'
+        AND %1$L >= 12
+        AND (%1$L >= 15 OR tags->>'natural' NOT IN ('rock', 'shrub', 'stone', 'termite_mound', 'tree', 'tree_stump'))
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'place'
+        AND (
+          (
+            tags->>'population' ~ '^\d+$'
+            AND (
+              (tags->>'capital' IN ('2', '4') OR (tags->>'population')::integer > 1000000)
+              OR (%1$L >= 6 AND (tags->>'place' IN ('city') AND (tags->>'population')::integer > 100000))
+              OR (%1$L >= 8 AND (tags->>'capital' IN ('6') OR tags->>'place' IN ('city')))
+            )
+          )
+          OR %1$L >= 12
+        )
+    ;
+    $fmt$, z, env_geom);
+  END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION function_get_point_layer_for_tile(z integer, env_geom geometry)
   RETURNS bytea
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $point_function_body$
   WITH
-    raw_envelope AS (
-      SELECT ST_TileEnvelope(z, x, y) AS env_geom
-    ),
-    envelope AS (
-      SELECT
-        env_geom,
-        ST_Area(env_geom) AS env_area,
-        ST_Area(env_geom) * 0.00001 AS min_area,
-        ST_Area(env_geom) * 0.0005 AS boundary_min_area,
-        (ST_XMax(env_geom) - ST_XMin(env_geom)) AS env_width,
-        ((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2 AS simplify_tolerance
-      FROM raw_envelope
-      -- Be super sure that this table will only have one row or else we'll incur lots of unexpected cross joins
-      LIMIT 1
-    ),
-    unioned_point_features AS (
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "aerialway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area')
-          AND z >= 15
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "aeroway", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type IN ('point', 'area')
-            OR (geom_type = 'closed_way' AND "aeroway" NOT IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))
-          )           
-          AND z >= 8
-          AND (z >= 12 OR ("aeroway" = 'aerodrome' AND "aerodrome" = 'international'))
-          AND (z >= 15 OR ("aeroway" NOT IN ('gate', 'navigationaid', 'windsock')))
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "advertising", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "amenity", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND "education" IS NULL
-          AND "healthcare" IS NULL
-          AND "public_transport" IS NULL
-          AND z >= 12
-          -- small stuff that may be associated with a larger facility
-          AND (z >= 14 OR ("amenity" NOT IN ('atm', 'bbq', 'bicycle_parking', 'drinking_water', 'fountain', 'parcel_locker', 'post_box', 'public_bookcase', 'telephone', 'ticket_validator', 'toilets', 'shower', 'vending_machine', 'waste_disposal')))
-          -- smaller stuff
-          AND (z >= 15 OR ("amenity" NOT IN ('bench', 'letter_box', 'lounger', 'recycling', 'waste_basket')))
-          -- micromapped stuff
-          AND (z >= 18 OR ("amenity" NOT IN ('parking_space')))
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "barrier", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area')
-          AND z >= 15
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "boundary", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND "boundary" IN ('protected_area', 'aboriginal_lands')
-          AND (z >= 10 OR "area_3857" > boundary_min_area)
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "club", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "craft", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "education", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "emergency", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "golf", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND "landuse" IS NULL
-          AND "natural" IS NULL
-          AND z >= 15
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "healthcare", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "highway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area')
-          AND "amenity" IS NULL
-          AND "public_transport" IS NULL
-          AND z >= 15
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "historic", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "indoor", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type IN ('point', 'area')
-            OR (geom_type = 'closed_way' AND "indoor" NOT IN ('wall'))
-          )
-          AND z >= 18
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "information", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 15
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "landuse", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "leisure", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND "boundary" IS NULL
-          AND z >= 12
-          AND (z >= 15 OR "leisure" NOT IN ('firepit', 'picnic_table', 'sauna'))
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "man_made", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type IN ('point', 'area')
-            OR (geom_type = 'closed_way' AND "man_made" NOT IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
-          )           
-          AND z >= 12
-          AND (z >= 15 OR "man_made" NOT IN ('flagpole', 'manhole', 'utility_pole'))
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "military", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')          
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "natural", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type IN ('point', 'area')
-            OR (geom_type = 'closed_way' AND "natural" NOT IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
-          )
-          AND z >= 12
-          AND (z >= 15 OR "natural" NOT IN ('rock', 'shrub', 'stone', 'termite_mound', 'tree', 'tree_stump'))
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "office", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "place", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND (
-            (
-              "population" ~ '^\d+$'
-              AND (
-                ("capital" IN ('2', '4') OR "population"::integer > 1000000)
-                OR (z >= 6 AND ("place" IN ('city') AND "population"::integer > 100000))
-                OR (z >= 8 AND ("capital" IN ('6') OR "place" IN ('city')))
-              )
-            )
-            OR z >= 12
-          )
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "playground", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND "leisure" IS NULL
-          AND z >= 18
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "power", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type IN ('point', 'area')
-            OR (geom_type = 'closed_way' AND "power" NOT IN ('cable', 'line', 'minor_line'))
-          )
-          AND z >= 15
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "public_transport", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND (
-            (z >= 12 AND "public_transport" = 'station')
-            OR z >= 15
-          )
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "railway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area')
-          AND "public_transport" IS NULL
-          AND z >= 15
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "shop", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND "amenity" IS NULL
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "telecom", envelope env
-        WHERE geom && env.env_geom
-          AND (
-            geom_type IN ('point', 'area')
-            OR (geom_type = 'closed_way' AND "telecom" NOT IN ('line'))
-          )
-          AND z >= 15
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "tourism", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area', 'closed_way')
-          AND "information" IS NULL
-          AND z >= 12
-      UNION ALL
-        SELECT id, {{COLS}}, tags, geom, label_node_id
-        FROM "waterway", envelope env
-        WHERE geom && env.env_geom
-          AND geom_type IN ('point', 'area')
-          AND z >= 12
+    point_features AS (
+      SELECT _id AS id, _tags AS tags, _geom AS geom, 'n' AS osm_type FROM function_get_node_features(z, env_geom)
+    UNION ALL
+      SELECT _id AS id, _tags AS tags, ST_PointOnSurface(_geom) AS geom, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, (ST_Area(env_geom) * 0.00001)::real, (ST_Area(env_geom) * 0.0005)::real, (((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2)::real)
     ),
     tagged_point_features AS (
       SELECT
         id,
-        {{COLS}},
         jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}}) AS tags,
-        geom
-      FROM unioned_point_features
+        geom,
+        osm_type
+      FROM point_features
       LEFT JOIN LATERAL jsonb_each(tags) AS t(key, value) ON true
-      WHERE geom IS NOT NULL
-      GROUP BY id, {{COLS}}, geom
+      GROUP BY id, geom, osm_type
     ),
     mvt_point_features AS (
       SELECT
-        CASE
-          WHEN id > 0 THEN 'n'
-          WHEN id > -100000000000000000 THEN 'w'
-          ELSE 'r'
-        END AS osm_type,
-        CASE
-          WHEN id > 0 THEN id
-          WHEN id > -100000000000000000 THEN -id
-          ELSE -id - 100000000000000000
-        END AS osm_id,
-        {{COLS}},
+        osm_type,
+        id AS osm_id,
         tags,
-        ST_AsMVTGeom(ST_PointOnSurface(geom), env.env_geom, 4096, 64, true) AS geom
-      FROM tagged_point_features, envelope env
-      WHERE geom IS NOT NULL
+        ST_AsMVTGeom(geom, env_geom, 4096, 64, true) AS geom
+      FROM tagged_point_features
     )
     SELECT ST_AsMVT(tile, 'point', 4096, 'geom') AS mvt FROM mvt_point_features AS tile
 $point_function_body$;
 
-CREATE OR REPLACE
-  FUNCTION function_get_rustic_tile(z integer, x integer, y integer)
+CREATE OR REPLACE FUNCTION function_get_rustic_tile(z integer, x integer, y integer)
   RETURNS bytea
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $function_body$
   WITH
+    envelope AS (
+      SELECT ST_TileEnvelope(z, x, y) AS env_geom  
+    ),
     tiles AS (
-        SELECT function_get_area_layer_for_tile(z, x, y) AS mvt
+        SELECT function_get_area_layer_for_tile(z, env_geom) AS mvt FROM envelope
       UNION ALL
-        SELECT function_get_line_layer_for_tile(z, x, y) AS mvt
+        SELECT function_get_line_layer_for_tile(z, env_geom) AS mvt FROM envelope
       UNION ALL
-        SELECT function_get_point_layer_for_tile(z, x, y) AS mvt
+        SELECT function_get_point_layer_for_tile(z, env_geom) AS mvt FROM envelope
     )
     SELECT string_agg(mvt, ''::bytea) FROM tiles;
 $function_body$;

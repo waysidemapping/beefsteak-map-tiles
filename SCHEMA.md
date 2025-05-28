@@ -35,7 +35,7 @@ The following keys are supported on any geometry type (point, line, or area feat
   * `indoor=wall` implies line geometry on closed ways.
 * `natural`
   * `natural=coastline` features are included only in the `area` layer as aggregate oceans. They do not carry attributes.
-  * `natural=bay/peninsula` features are included only in the `point` layer, not `area` or `line`.
+  * `natural=bay/peninsula` features are not included in the `area` layer since they are usually not rendered as areas.
 * `power`
   * `power=cable/line/minor_line` imply line geometry on closed ways.
 * `telecom`
@@ -56,6 +56,7 @@ The following keys are supported only on point and area features. Closed ways ar
 * `advertising`
 * `amenity`
   * `amenity=bench/bicycle_parking` on lines is not supported. Consider mapping as a node or area.
+* `building`
 * `club`
 * `craft`
 * `education`
@@ -87,8 +88,6 @@ For the following key, features are included only in the `point` layer, not the 
 The following keys are supported only on area features. Closed ways are assumed to be areas. Open ways, or closed ways with `area=no`, are considered lines and are not included in the tiles.
 
 * `area:highway`
-* `building`
-  * Buildings are often double-tagged with a POI top-level tag, like `shop` or `amenity`. In this case, the tiles will still include the POI in the `points` layer.
 * `building:part`
 
 ### Line only tags
