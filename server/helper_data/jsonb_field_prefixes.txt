@@ -6,6 +6,7 @@ rapids:name:
 tunnel:name:
 waterbody:name:
 waterway:name:
+
 communication:
 currency:
 diet:
