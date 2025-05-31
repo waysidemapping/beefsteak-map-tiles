@@ -305,17 +305,17 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
         AND NOT is_explicit_line
         AND area_3857 > %3$L
     ),
-    relation_areas AS (
+    relation_areas AS NOT MATERIALIZED (
       SELECT id, tags, geom, area_3857, 'r' AS osm_type, true AS is_explicit_area FROM area_relation
       WHERE geom && %2$L
         AND area_3857 > %3$L
     ),
-    areas AS (
+    areas AS NOT MATERIALIZED (
         SELECT * FROM closed_ways
       UNION ALL
         SELECT * FROM relation_areas
     ),
-    non_buildings AS (
+    non_buildings AS NOT MATERIALIZED (
       SELECT * FROM areas WHERE NOT tags ? 'building'
     ),
     filtered_non_buildings AS (
