@@ -381,6 +381,8 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'emergency'
+        -- ignore access tags
+        AND NOT tags->>'emergency' IN ('designated', 'destination', 'customers', 'no', 'official', 'permissive', 'private', 'unknown', 'yes')
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'golf'
@@ -445,6 +447,8 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'indoor'
+        -- ignore attribute tags
+        AND NOT tags->>'indoor' IN ('no', 'unknown', 'yes')
         AND %1$L >= 18
     UNION ALL
       SELECT * FROM non_buildings
@@ -459,6 +463,7 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       WHERE tags ? 'natural'
         AND NOT tags @> '{"natural": "bay"}'
         AND NOT tags @> '{"natural": "peninsula"}'
+        AND NOT tags @> '{"natural": "strait"}'
         AND NOT tags @> '{"natural": "coastline"}'
         AND NOT tags @> '{"natural": "water"}'
         AND %1$L >= 10
@@ -648,9 +653,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       UNION ALL
         SELECT * FROM lines_in_tile
         WHERE tags ? 'indoor'
-          AND NOT tags @> '{"indoor": "yes"}'
-          AND NOT tags @> '{"indoor": "no"}'
-          AND NOT tags @> '{"indoor": "unknown"}'
+          -- ignore attribute tags
+          AND NOT tags->>'indoor' IN ('no', 'unknown', 'yes')
           AND NOT tags ? 'highway'
           AND %1$L >= 18
       UNION ALL
@@ -797,7 +801,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'barrier'
-        AND (%1$L >= 12 OR area_3857 > %3$L)
+        AND (%1$L >= 15 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE (
@@ -826,6 +830,8 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'emergency'
+        -- ignore access tags
+        AND NOT tags->>'emergency' IN ('designated', 'destination', 'customers', 'no', 'official', 'permissive', 'private', 'unknown', 'yes')
         AND (%1$L >= 12 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
@@ -846,6 +852,8 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'indoor'
+        -- ignore attribute tags
+        AND NOT tags->>'indoor' IN ('no', 'unknown', 'yes')
         AND (%1$L >= 18 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
