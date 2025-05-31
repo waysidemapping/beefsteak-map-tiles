@@ -178,7 +178,8 @@
                 "symbol-sort-key": [
                     "case",
                     ["has", "place"], 0,
-                    1
+                    ["has", "area_3857"], ["-", 1000000000000, ["get", "area_3857"]],
+                    1000000000000
                 ],
                 "text-field": ["coalesce", ["get", "name"], ["get", "ref"]]
             },
