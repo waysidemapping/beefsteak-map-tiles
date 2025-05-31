@@ -291,7 +291,7 @@ CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geometry, min_area real, min_notable_area real, simplify_tolerance real)
+CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geometry, min_area real, simplify_tolerance real)
   RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _area_3857 real, _osm_type text)
   LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
@@ -301,7 +301,7 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     closed_ways AS (
       SELECT id, tags, geom, area_3857 FROM way
       WHERE geom && %2$L
-        AND is_closed = true
+        AND is_closed
         AND area_3857 > %3$L
     ),
     way_areas AS (
@@ -345,7 +345,6 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       SELECT id, tags, geom, area_3857 FROM area_relation
       WHERE geom && %2$L
         AND area_3857 > %3$L
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     ),
     areas AS (
         SELECT id, tags, geom, area_3857, 'w' AS osm_type FROM way_areas
@@ -358,109 +357,83 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     filtered_non_buildings AS (
       SELECT * FROM non_buildings
       WHERE tags ? 'aerialway'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'aeroway'
-        AND (%1$L >= 12 OR area_3857 > %4$L OR (%1$L >= 6 AND tags @> '{"aeroway": "aerodrome"}' AND tags @> '{"aerodrome": "international"}'))
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'advertising'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'amenity'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'barrier'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'club'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'craft'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'education'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'emergency'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'golf'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'healthcare'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'highway'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'historic'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'information'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'leisure'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'man_made'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'miltary'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'office'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'power'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'public_transport'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'railway'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'shop'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'telecom'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'tourism'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'waterway'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE (tags @> '{"boundary": "protected_area"}'
         OR tags @> '{"boundary": "aboriginal_lands"}')
         AND NOT tags ? 'leisure'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'area:highway'
@@ -481,7 +454,6 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       SELECT * FROM non_buildings
       WHERE tags ? 'landuse'
         AND %1$L >= 10
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'natural'
@@ -490,11 +462,9 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
         AND NOT tags @> '{"natural": "coastline"}'
         AND NOT tags @> '{"natural": "water"}'
         AND %1$L >= 10
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags @> '{"natural": "water"}'
-        AND (%1$L >= 12 OR area_3857 > %4$L)
     ),
     filtered_areas AS (
         SELECT * FROM filtered_non_buildings
@@ -502,11 +472,10 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
         SELECT * FROM areas
         WHERE tags ? 'building'
           AND %1$L >= 14
-          AND (%1$L >= 17 OR area_3857 > %4$L)
     )
-    SELECT id, tags, ST_Simplify(geom, %5$L, true) AS geom, area_3857, osm_type FROM filtered_areas
+    SELECT id, tags, ST_Simplify(geom, %4$L, true) AS geom, area_3857, osm_type FROM filtered_areas
   ;
-  $fmt$, z, env_geom, min_area, min_notable_area, simplify_tolerance);
+  $fmt$, z, env_geom, min_area, simplify_tolerance);
 END;
 $$;
 
@@ -516,7 +485,7 @@ CREATE OR REPLACE FUNCTION function_get_area_layer_for_tile(z integer, env_geom 
   AS $area_function_body$
   WITH
     area_features_without_ocean AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, (ST_Area(env_geom) * 0.00001)::real, 0::real, (((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2)::real)
+      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, (ST_Area(env_geom) * 0.00001)::real, (((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2)::real)
     ),
     unioned_area_features AS (
         SELECT id, tags, geom, area_3857, osm_type FROM area_features_without_ocean
@@ -732,25 +701,103 @@ CREATE OR REPLACE FUNCTION function_get_line_layer_for_tile(z integer, env_geom 
     SELECT ST_AsMVT(tile, 'line', 4096, 'geom') AS mvt FROM mvt_line_features AS tile
 $line_function_body$;
 
-CREATE OR REPLACE FUNCTION function_get_node_features(z integer, env_geom geometry)
-  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry)
+CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geometry, min_area real)
+  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _area_3857 real, _osm_type text)
   LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
     BEGIN
     RETURN QUERY EXECUTE format($fmt$
     WITH
-    points_in_tile AS (
+    closed_way_centerpoints AS (
+      SELECT id, tags, pole_of_inaccessibility AS geom, area_3857 FROM way
+      WHERE pole_of_inaccessibility && %2$L
+        AND is_closed
+    ),
+    way_area_centerpoints AS (
+        SELECT id, tags, geom, area_3857 FROM closed_way_centerpoints
+        WHERE tags @> '{"area": "yes"}'
+      UNION ALL
+        SELECT id, tags, geom, area_3857 FROM closed_way_centerpoints
+        WHERE NOT tags @> '{"area": "no"}'
+          AND NOT tags ? 'aerialway'
+          AND NOT tags ? 'barrier'
+          AND NOT tags ? 'highway'
+          AND NOT tags ? 'railway'
+          AND NOT tags ? 'route'
+          AND NOT tags ? 'waterway'
+          AND NOT tags @> '{"aeroway": "jet_bridge"}'
+          AND NOT tags @> '{"aeroway": "parking_position"}'
+          AND NOT tags @> '{"aeroway": "runway"}'
+          AND NOT tags @> '{"aeroway": "taxiway"}'
+          AND NOT tags @> '{"indoor": "wall"}'
+          AND NOT tags @> '{"man_made": "breakwater"}'
+          AND NOT tags @> '{"man_made": "cutline"}'
+          AND NOT tags @> '{"man_made": "dyke"}'
+          AND NOT tags @> '{"man_made": "embankment"}'
+          AND NOT tags @> '{"man_made": "gantry"}'
+          AND NOT tags @> '{"man_made": "goods_conveyor"}'
+          AND NOT tags @> '{"man_made": "groyne"}'
+          AND NOT tags @> '{"man_made": "pier"}'
+          AND NOT tags @> '{"man_made": "pipeline"}'
+          AND NOT tags @> '{"natural": "cliff"}'
+          AND NOT tags @> '{"natural": "gorge"}'
+          AND NOT tags @> '{"natural": "ridge"}'
+          AND NOT tags @> '{"natural": "strait"}'
+          AND NOT tags @> '{"natural": "tree_row"}'
+          AND NOT tags @> '{"natural": "valley"}'
+          AND NOT tags @> '{"power": "line"}'
+          AND NOT tags @> '{"power": "minor_line"}'
+          AND NOT tags @> '{"power": "cable"}'
+          AND NOT tags @> '{"telecom": "line"}'
+    ),
+    relation_area_centerpoints AS (
+      SELECT id, tags, pole_of_inaccessibility AS geom, area_3857 FROM area_relation
+      WHERE pole_of_inaccessibility && %2$L
+    ),
+    nodes AS (
       SELECT id, tags, geom FROM node
       WHERE geom && %2$L
-    )
-    SELECT * FROM points_in_tile
-      WHERE tags ?| array['advertising', 'club', 'craft', 'education', 'emergency', 'healthcare', 'historic', 'miltary', 'office', 'shop', 'waterway']
-        AND %1$L >= 12
+    ),
+    points_in_tile AS (
+        SELECT id, tags, geom, NULL::real AS area_3857, 'n' AS osm_type FROM nodes
+      UNION ALL
+        SELECT id, tags, geom, area_3857, 'w' AS osm_type FROM way_area_centerpoints
+      UNION ALL
+        SELECT id, tags, geom, area_3857, 'r' AS osm_type FROM relation_area_centerpoints
+    ),
+    filtered_points AS (
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'advertising'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
-      WHERE tags ? 'tourism'
-        AND NOT tags @> '{"tourism": "information"}'
-        AND %1$L >= 12
+      WHERE tags ? 'aerialway'
+        AND (%1$L >= 15 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'aeroway'
+        AND ((%1$L >= 6
+        AND (%1$L >= 12 OR (tags @> '{"aeroway": "aerodrome"}' AND tags @> '{"aerodrome": "international"}'))
+        AND (%1$L >= 15 OR (tags->>'aeroway' NOT IN ('gate', 'navigationaid', 'windsock')))
+        ) OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'amenity'
+        AND NOT tags ? 'education'
+        AND NOT tags ? 'healthcare'
+        AND NOT tags ? 'public_transport'
+        AND ((%1$L >= 12
+        -- small stuff that may be associated with a larger facility
+        AND (%1$L >= 14 OR (tags->>'amenity' NOT IN ('atm', 'bbq', 'bicycle_parking', 'drinking_water', 'fountain', 'parcel_locker', 'post_box', 'public_bookcase', 'telephone', 'ticket_validator', 'toilets', 'shower', 'vending_machine', 'waste_disposal')))
+        -- smaller stuff
+        AND (%1$L >= 15 OR (tags->>'amenity' NOT IN ('bench', 'letter_box', 'lounger', 'recycling', 'waste_basket')))
+        -- micromapped stuff
+        AND (%1$L >= 18 OR (tags->>'amenity' NOT IN ('parking_space')))
+        ) OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'barrier'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE (
@@ -758,61 +805,89 @@ CREATE OR REPLACE FUNCTION function_get_node_features(z integer, env_geom geomet
           OR tags @> '{"boundary": "aboriginal_lands"}'
         )
         AND NOT tags ? 'leisure'
-        AND %1$L >= 12
+        AND (%1$L >= 12 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
-      WHERE tags @> '{"public_transport": "station"}'
-        AND %1$L >= 12
+      WHERE tags ? 'building'
+        AND NOT tags ?| ARRAY['advertising', 'aerialway', 'aeroway', 'amenity', 'barrier', 'boundary', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'highway', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'military', 'natural', 'office', 'place', 'playground', 'power', 'public_transport', 'railway', 'route', 'shop', 'telecom', 'tourism', 'waterway']
+        AND (%1$L >= 17 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
-      WHERE tags ? 'public_transport'
-      AND NOT tags @> '{"public_transport": "station"}'
-        AND %1$L >= 15
+      WHERE tags ? 'club'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
-      WHERE tags ?| array['aerialway', 'barrier', 'golf', 'highway', 'information', 'power', 'railway', 'telecom']
-        AND %1$L >= 15
+      WHERE tags ? 'craft'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'education'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'emergency'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'golf'
+        AND (%1$L >= 15 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'healthcare'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'highway'
+        AND (%1$L >= 15 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'historic'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'indoor'
-        AND %1$L >= 18
+        AND (%1$L >= 18 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
-      WHERE tags ? 'playground'
-        AND NOT tags ? 'leisure'
-        AND %1$L >= 18
+      WHERE tags ? 'information'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
-      WHERE tags ? 'aeroway'
-        AND %1$L >= 6
-        AND (%1$L >= 12 OR (tags @> '{"aeroway": "aerodrome"}' AND tags @> '{"aerodrome": "international"}'))
-        AND (%1$L >= 15 OR (tags->>'aeroway' NOT IN ('gate', 'navigationaid', 'windsock')))
-    UNION ALL
-      SELECT * FROM points_in_tile
-      WHERE tags ? 'amenity'
-        AND NOT tags ? 'education'
-        AND NOT tags ? 'healthcare'
-        AND NOT tags ? 'public_transport'
-        AND %1$L >= 12
-        -- small stuff that may be associated with a larger facility
-        AND (%1$L >= 14 OR (tags->>'amenity' NOT IN ('atm', 'bbq', 'bicycle_parking', 'drinking_water', 'fountain', 'parcel_locker', 'post_box', 'public_bookcase', 'telephone', 'ticket_validator', 'toilets', 'shower', 'vending_machine', 'waste_disposal')))
-        -- smaller stuff
-        AND (%1$L >= 15 OR (tags->>'amenity' NOT IN ('bench', 'letter_box', 'lounger', 'recycling', 'waste_basket')))
+      WHERE tags ? 'landuse'
+        AND %1$L >= 10
+        AND (%1$L >= 12 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'leisure'
-        AND %1$L >= 12
+        AND ((%1$L >= 12
         AND (%1$L >= 15 OR tags->>'leisure' NOT IN ('firepit', 'picnic_table', 'sauna'))
+        ) OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'man_made' 
-        AND %1$L >= 12
+        AND ((%1$L >= 12
         AND (%1$L >= 15 OR tags->>'man_made' NOT IN ('flagpole', 'manhole', 'utility_pole'))
+        ) OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'miltary'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'natural'
-        AND %1$L >= 12
+        AND NOT tags ? 'place'
+        AND %1$L >= 10
+        AND ((%1$L >= 12
         AND (%1$L >= 15 OR tags->>'natural' NOT IN ('rock', 'shrub', 'stone', 'termite_mound', 'tree', 'tree_stump'))
+        ) OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'office'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'power'
+        AND (%1$L >= 15 OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'place'
@@ -825,10 +900,48 @@ CREATE OR REPLACE FUNCTION function_get_node_features(z integer, env_geom geomet
               OR (%1$L >= 8 AND (tags->>'capital' IN ('6') OR tags->>'place' IN ('city')))
             )
           )
+          OR (tags->>'place' IN ('island', 'islet') AND area_3857 > %3$L)
           OR %1$L >= 12
         )
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'playground'
+        AND NOT tags ? 'leisure'
+        AND (%1$L >= 18 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags @> '{"public_transport": "station"}'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'public_transport'
+      AND NOT tags @> '{"public_transport": "station"}'
+        AND (%1$L >= 15 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'railway'
+        AND (%1$L >= 15 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'shop'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'telecom'
+        AND (%1$L >= 15 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'tourism'
+        AND NOT tags @> '{"tourism": "information"}'
+        AND (%1$L >= 12 OR area_3857 > %3$L)
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ? 'waterway'
+        AND (%1$L >= 15 OR area_3857 > %3$L)
+    )
+    SELECT * FROM filtered_points
     ;
-    $fmt$, z, env_geom);
+    $fmt$, z, env_geom, min_area);
   END;
 $$;
 
@@ -839,9 +952,7 @@ CREATE OR REPLACE FUNCTION function_get_point_layer_for_tile(z integer, env_geom
   AS $point_function_body$
   WITH
     point_features AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom, NULL AS area_3857, 'n' AS osm_type FROM function_get_node_features(z, env_geom)
-    UNION ALL
-      SELECT _id AS id, _tags AS tags, ST_PointOnSurface(_geom) AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, (ST_Area(env_geom) * 0.00001)::real, (ST_Area(env_geom) * 0.0005)::real, (((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2)::real)
+      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_point_features(z, env_geom, (ST_Area(env_geom) * 0.0005)::real)
     ),
     tagged_point_features AS (
       SELECT
