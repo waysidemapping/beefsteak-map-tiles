@@ -2,7 +2,7 @@ local node_table = osm2pgsql.define_table({
     name = 'node',
     ids = { type = 'node', id_column = 'id', create_index = 'primary_key' },
     columns = {
-        { column = 'tags', type = 'jsonb', not_null = true },
+        { column = 'tags', type = 'hstore', not_null = true },
         { column = 'geom', type = 'point', proj = '3857', not_null = true }
     },
     indexes = {
@@ -15,7 +15,9 @@ local way_table = osm2pgsql.define_table({
     name = 'way',
     ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
     columns = {
-        { column = 'tags', type = 'jsonb', not_null = true },
+        { column = 'tags', type = 'hstore', not_null = true },
+        { column = 'is_explicit_area', type = 'boolean', not_null = true },
+        { column = 'is_explicit_line', type = 'boolean', not_null = true },
         { column = 'area_3857', type = 'real', not_null = true },
         { column = 'length_3857', type = 'real', not_null = true },
         { column = 'is_closed', type = 'boolean', not_null = true },
@@ -24,9 +26,8 @@ local way_table = osm2pgsql.define_table({
     },
     indexes = {
         { column = 'geom', method = 'gist' },
-        { column = 'geom', method = 'gist', where = 'is_closed' },
-        { column = 'area_3857', method = 'btree', where = 'is_closed' },
-        { column = 'pole_of_inaccessibility', method = 'gist', where = 'is_closed' },
+        { column = 'pole_of_inaccessibility', method = 'gist' },
+        { column = 'area_3857', method = 'btree' },
         { column = 'tags', method = 'gin' }
     }
 })
@@ -50,7 +51,7 @@ local area_relation_table = osm2pgsql.define_table({
     ids = { type = 'relation', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'relation_type', type = 'text', not_null = true },
-        { column = 'tags', type = 'jsonb', not_null = true },
+        { column = 'tags', type = 'hstore', not_null = true },
         { column = 'area_3857', type = 'real' },
         { column = 'geom', type = 'multipolygon', proj = '3857', not_null = true },
         { column = 'pole_of_inaccessibility', type = 'point', proj = '3857' },
@@ -70,7 +71,7 @@ local non_area_relation_table = osm2pgsql.define_table({
     ids = { type = 'relation', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'relation_type', type = 'text', not_null = true },
-        { column = 'tags', type = 'jsonb', not_null = true },
+        { column = 'tags', type = 'hstore', not_null = true },
         { column = 'length_3857', type = 'real' },
         { column = 'centroid', type = 'point', proj = '3857' }
     },
@@ -158,6 +159,8 @@ function process_way(object)
 
     way_table:insert({
         tags = object.tags,
+        is_explicit_area = object.tags.area == 'yes',
+        is_explicit_line = object.tags.area == 'no',
         area_3857 = area_3857,
         length_3857 = length_3857,
         is_closed = object.is_closed,
