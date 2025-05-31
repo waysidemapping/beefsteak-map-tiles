@@ -891,6 +891,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'place'
+        AND NOT tags @> '{"place": "archipelago"}'
         AND (
           (
             tags->>'population' ~ '^\d+$'
@@ -938,8 +939,16 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       SELECT * FROM points_in_tile
       WHERE tags ? 'waterway'
         AND (%1$L >= 15 OR area_3857 > %3$L)
+    ),
+    relation_area_centroids AS (
+      SELECT id, tags, centroid AS geom, area_3857 FROM area_relation
+      WHERE centroid && %2$L
+        AND tags @> '{"place": "archipelago"}'
+        AND area_3857 > %3$L
     )
     SELECT * FROM filtered_points
+    UNION ALL
+    SELECT id, tags, geom, area_3857, 'r' AS osm_type FROM relation_area_centroids
     ;
     $fmt$, z, env_geom, min_area);
   END;
