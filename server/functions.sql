@@ -797,7 +797,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       WHERE tags ? 'leisure'
         AND ((%1$L >= 12
         AND (%1$L >= 14 OR tags->'leisure' NOT IN ('swimming_pool'))
-        AND (%1$L >= 15 OR tags->'leisure' NOT IN ('firepit', 'picnic_table', 'sauna', 'swimming_pool'))
+        AND (%1$L >= 15 OR tags->'leisure' NOT IN ('firepit', 'picnic_table', 'sauna'))
         ) OR area_3857 > %3$L)
     UNION ALL
       SELECT * FROM points_in_tile
