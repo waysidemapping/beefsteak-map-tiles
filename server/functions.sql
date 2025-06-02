@@ -334,8 +334,21 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       WHERE tags ? 'amenity'
     UNION ALL
       SELECT * FROM non_buildings
+      WHERE tags ? 'area:highway'
+        AND %1$L >= 18
+    UNION ALL
+      SELECT * FROM non_buildings
       WHERE tags ? 'barrier'
       AND is_explicit_area
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE (tags @> 'boundary => protected_area'
+        OR tags @> 'boundary => aboriginal_lands')
+        AND NOT tags ? 'leisure'
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'building:part'
+        AND %1$L >= 18
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'club'
@@ -349,7 +362,7 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       SELECT * FROM non_buildings
       WHERE tags ? 'emergency'
         -- ignore access tags
-        AND NOT tags->'emergency' IN ('designated', 'destination', 'customers', 'no', 'official', 'permissive', 'private', 'unknown', 'yes')
+        AND tags->'emergency' NOT IN ('designated', 'destination', 'customers', 'no', 'official', 'permissive', 'private', 'unknown', 'yes')
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'golf'
@@ -365,7 +378,18 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       WHERE tags ? 'historic'
     UNION ALL
       SELECT * FROM non_buildings
+      WHERE tags ? 'indoor'
+        AND (is_explicit_area OR tags->'indoor' NOT IN ('wall'))
+        -- ignore attribute tags
+        AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
+        AND %1$L >= 18
+    UNION ALL
+      SELECT * FROM non_buildings
       WHERE tags ? 'information'
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'landuse'
+        AND %1$L >= 10
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'leisure'
@@ -378,7 +402,20 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       WHERE tags ? 'miltary'
     UNION ALL
       SELECT * FROM non_buildings
+      WHERE tags ? 'natural'
+        AND (is_explicit_area OR tags->'natural' NOT IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
+        AND tags->'natural' NOT IN ('bay', 'peninsula', 'strait', 'coastline', 'water')
+        AND %1$L >= 10
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags @> 'natural => water'
+    UNION ALL
+      SELECT * FROM non_buildings
       WHERE tags ? 'office'
+    UNION ALL
+      SELECT * FROM non_buildings
+      WHERE tags ? 'playground'
+        AND %1$L >= 18
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'power'
@@ -404,43 +441,6 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       SELECT * FROM non_buildings
       WHERE tags ? 'waterway'
       AND is_explicit_area
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE (tags @> 'boundary => protected_area'
-        OR tags @> 'boundary => aboriginal_lands')
-        AND NOT tags ? 'leisure'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'area:highway'
-        AND %1$L >= 18
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'building:part'
-        AND %1$L >= 18
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'indoor'
-        AND (is_explicit_area OR tags->'indoor' NOT IN ('wall'))
-        -- ignore attribute tags
-        AND NOT tags->'indoor' IN ('no', 'unknown', 'yes')
-        AND %1$L >= 18
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'playground'
-        AND %1$L >= 18
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'landuse'
-        AND %1$L >= 10
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'natural'
-        AND (is_explicit_area OR tags->'natural' NOT IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
-        AND tags->'natural' NOT IN ('bay', 'peninsula', 'strait', 'coastline', 'water')
-        AND %1$L >= 10
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags @> 'natural => water'
     ),
     filtered_areas AS (
         SELECT * FROM filtered_non_buildings
@@ -589,7 +589,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         WHERE tags ? 'indoor'
           AND (NOT is_closed OR (is_closed AND (is_explicit_line OR tags->'indoor' IN ('wall'))))
           -- ignore attribute tags
-          AND NOT tags->'indoor' IN ('no', 'unknown', 'yes')
+          AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
           AND %1$L >= 18
       UNION ALL
         SELECT * FROM non_highways
