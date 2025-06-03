@@ -512,6 +512,17 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           OR tags @> 'highway => primary'
         GROUP BY tags->'highway'
       UNION ALL
+        SELECT NULL::int8 AS id,
+          jsonb_build_object('highway', 'path') AS tags,
+          ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(w.geom))), %3$L, true) AS geom
+        FROM way w
+        JOIN way_relation_member rw ON w.id = rw.member_id
+        JOIN non_area_relation r ON rw.relation_id = r.id
+        WHERE w.geom && %2$L
+          AND r.tags @> 'route => hiking'
+          AND r.length_3857 > 100000
+        GROUP BY w.id, w.tags, w.geom
+      UNION ALL
         SELECT NULL::int8 AS id, jsonb_build_object('railway', tags->'railway', 'usage', tags->'usage') AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %3$L, true) AS geom
         FROM ways_in_tile
         WHERE tags @> 'railway => rail'
@@ -544,6 +555,9 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       non_highways AS (
         SELECT * FROM ways_in_tile WHERE NOT tags ? 'highway'
       ),
+      highways AS (
+        SELECT * FROM ways_in_tile WHERE tags ? 'highway'
+      ),
       filtered_lines AS (
         SELECT * FROM non_highways
         WHERE tags ? 'aerialway'
@@ -563,28 +577,32 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           AND (NOT is_closed OR (is_closed AND is_explicit_line))
           AND %1$L >= 15
       UNION ALL
-        SELECT * FROM ways_in_tile
-        WHERE tags ? 'highway'
-          AND (
-            (
-              tags @> 'highway => motorway'
-              OR tags @> 'highway => motorway_link'
-              OR tags @> 'highway => trunk'
-              OR tags @> 'highway => trunk_link'
-              OR tags @> 'highway => primary'
-              OR tags @> 'highway => primary_link'
-              OR tags @> 'highway => secondary'
-            )
-            OR (%1$L >= 12 AND (
-              tags @> 'highway => secondary_link'
-              OR tags @> 'highway => tertiary'
-              OR tags @> 'highway => tertiary_link'
-              OR tags @> 'highway => residential'
-              OR tags @> 'highway => unclassified'
-            ))
-            OR (%1$L >= 13 AND NOT (tags @> 'highway => footway' AND tags ? 'footway'))
-            OR %1$L >= 15
+        SELECT w.*
+        FROM highways w
+        JOIN way_relation_member rw ON w.id = rw.member_id
+        JOIN non_area_relation r ON rw.relation_id = r.id
+        WHERE
+          (r.tags @> 'route => hiking'
+            AND r.length_3857 > 100000
           )
+          OR (
+            w.tags @> 'highway => motorway'
+            OR w.tags @> 'highway => motorway_link'
+            OR w.tags @> 'highway => trunk'
+            OR w.tags @> 'highway => trunk_link'
+            OR w.tags @> 'highway => primary'
+            OR w.tags @> 'highway => primary_link'
+            OR w.tags @> 'highway => secondary'
+          )
+          OR (%1$L >= 12 AND (
+            w.tags @> 'highway => secondary_link'
+            OR w.tags @> 'highway => tertiary'
+            OR w.tags @> 'highway => tertiary_link'
+            OR w.tags @> 'highway => residential'
+            OR w.tags @> 'highway => unclassified'
+          ))
+          OR (%1$L >= 13 AND NOT (w.tags @> 'highway => footway' AND w.tags ? 'footway'))
+          OR %1$L >= 15
       UNION ALL
         SELECT * FROM non_highways
         WHERE tags ? 'indoor'
