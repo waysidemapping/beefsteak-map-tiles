@@ -579,8 +579,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       UNION ALL
         SELECT w.*
         FROM highways w
-        JOIN way_relation_member rw ON w.id = rw.member_id
-        JOIN non_area_relation r ON rw.relation_id = r.id
+        LEFT JOIN way_relation_member rw ON w.id = rw.member_id
+        LEFT JOIN non_area_relation r ON rw.relation_id = r.id
         WHERE
           (r.tags @> 'route => hiking'
             AND r.length_3857 > 100000
