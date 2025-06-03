@@ -8,6 +8,7 @@
             "url": "http://localhost:3000/rustic"
         }
     },
+    "sprite": "http://localhost:4001/style/sprites/demo",
     "layers": [
         {
             "id": "background",
@@ -21,7 +22,7 @@
             "source": "rustic",
             "source-layer": "area",
             "type": "fill",
-            "filter": ["!has", "building"],
+            "filter": ["!", ["any", ["has", "building"], ["==", ["get", "boundary"], "administrative"]]],
             "paint": {
                 "fill-color": [
                     "case",
@@ -43,7 +44,8 @@
                 ["has", "highway"],
                 ["has", "railway"],
                 ["has", "route"],
-                ["has", "waterway"]
+                ["has", "waterway"],
+                ["==", ["get", "boundary"], "administrative"]
             ]],
             "paint": {
                 "line-color": "Purple"
@@ -99,7 +101,7 @@
             "paint": {
                 "line-color": [
                     "case",
-                    ["in", ["get", "highway"], ["literal", ["path", "footway", "cycleway", "bridleway", "cooridor"]]], "SaddleBrown",
+                    ["in", ["get", "highway"], ["literal", ["path", "footway", "cycleway", "bridleway", "cooridor"]]], "DarkGreen",
                     "Red"
                 ],
                 "line-opacity": 1
@@ -128,13 +130,39 @@
             }
         },
         {
-            "id": "point",
+            "id": "boundary",
             "source": "rustic",
-            "source-layer": "point",
-            "type": "circle",
+            "source-layer": "line",
+            "type": "line",
+            "filter": ["==", ["get", "boundary"], "administrative"],
             "paint": {
-                "circle-color": "Teal",
-                "circle-opacity": 0.5
+                "line-color": "Magenta",
+                "line-dasharray": [4, 4]
+            }
+        },
+        {
+            "id": "boundary-label",
+            "source": "rustic",
+            "source-layer": "area",
+            "type": "symbol",
+            "filter": ["==", ["get", "boundary"], "administrative"],
+            "layout": {
+                "symbol-placement": "line",
+                "text-overlap": "never",
+                "text-offset":[
+                    "match", ["get", "admin_level"],
+                    "4", ["literal", [-30, 1]],
+                    "6", ["literal", [-15, 1]],
+                    ["literal", [0, 1]]
+                ],
+                "text-size": 11,
+                "text-font": ["Americana-Regular"],
+                "text-field": ["get", "name"]
+            },
+            "paint": {
+                "text-color":  "Black",
+                "text-halo-color": "White",
+                "text-halo-width": 1.5
             }
         },
         {
@@ -163,11 +191,32 @@
             }
         },
         {
+            "id": "area-target",
+            "source": "rustic",
+            "source-layer": "area",
+            "type": "fill",
+            "paint": {
+                "fill-opacity": 0
+            }
+        },
+        {
+            "id": "line-target",
+            "source": "rustic",
+            "source-layer": "line",
+            "type": "line",
+            "paint": {
+                "line-width": 8,
+                "line-opacity": 0
+            }
+        },
+        {
             "id": "point-label",
             "source": "rustic",
             "source-layer": "point",
             "type": "symbol",
             "layout": {
+                "icon-image": ["image", "circle"],
+                "icon-allow-overlap": true,
                 "text-size": 11,
                 "text-font": [
                     "case",
@@ -175,6 +224,7 @@
                     ["==", ["get", "natural"], "water"], ["literal", ["Americana-Italic"]],
                     ["literal", ["Americana-Regular"]]
                 ],
+                "text-optional": true,
                 "symbol-sort-key": [
                     "case",
                     ["has", "place"], 0,
@@ -184,6 +234,7 @@
                 "text-field": ["coalesce", ["get", "name"], ["get", "ref"]]
             },
             "paint": {
+                "icon-opacity": 0.5,
                 "text-color": [
                     "case",
                     ["==", ["get", "natural"], "water"], "Navy",

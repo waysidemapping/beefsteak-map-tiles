@@ -1,38 +1,42 @@
-var map = new maplibregl.Map({
+var map;
+
+window.addEventListener('load', function () {
+  map = new maplibregl.Map({
     container: 'map',
-    style: '/style.json',
+    style: '/style/rustic-demo-style.json',
     hash: 'map',
     minZoom: 5,
     center: [0, 0],
     zoom: 5
-});
+  });
+  map
+    .addControl(new maplibregl.NavigationControl({
+      visualizePitch: true
+    }))
+    .addControl(new maplibregl.GeolocateControl({
+        positionOptions: {
+            enableHighAccuracy: true
+        },
+        trackUserLocation: true
+    }))
+    .addControl(new maplibregl.ScaleControl({
+        maxWidth: 150,
+        unit: 'imperial'
+    }), "bottom-left");
 
-map
-  .addControl(new maplibregl.NavigationControl({
-    visualizePitch: true
-  }))
-  .addControl(new maplibregl.GeolocateControl({
-      positionOptions: {
-          enableHighAccuracy: true
-      },
-      trackUserLocation: true
-  }))
-  .addControl(new maplibregl.ScaleControl({
-      maxWidth: 150,
-      unit: 'imperial'
-  }), "bottom-left");
-
-map.on('mousemove', didMouseMoveMap);
-map.on('click', didClickMap);
-
+  map.on('mousemove', didMouseMoveMap);
+  map.on('click', didClickMap);
+})
 
 let activePopup;
 
 let isPopupLocked = false;
 
+let queryOpts = {layers:['area-target', 'line-target', 'point-label']};
+
 function didMouseMoveMap(e) {
 
-  let entities = map.queryRenderedFeatures(e.point);
+  let entities = map.queryRenderedFeatures(e.point, queryOpts);
   let entity = entities.length && entities[0];
   // Change the cursor style as a UI indicator
   map.getCanvas().style.cursor = entity ? 'pointer' : '';
@@ -48,7 +52,7 @@ let osmTypeName = {
 
 function processMouseForPopup(e) {
 
-  let entities = map.queryRenderedFeatures(e.point).filter(entity => !entity.layer.id.includes('-label'));
+  let entities = map.queryRenderedFeatures(e.point, queryOpts);
 
   if (!entities.length && !isPopupLocked) {
     activePopup?.remove();
@@ -145,7 +149,7 @@ function didClickMap(e) {
     } else {
       isPopupLocked = false;
 
-      let entities = map.queryRenderedFeatures(e.point);
+      let entities = map.queryRenderedFeatures(e.point, queryOpts);
 
       if (entities.length) {
         processMouseForPopup(e);
