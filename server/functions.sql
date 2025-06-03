@@ -472,7 +472,7 @@ CREATE OR REPLACE FUNCTION function_get_area_layer_for_tile(z integer, env_geom 
     tagged_area_features AS (
       SELECT
         id,
-        jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}}) AS tags,
+        jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}} OR key LIKE 'r.%') AS tags,
         geom,
         area_3857,
         osm_type
@@ -558,26 +558,47 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       highways AS (
         SELECT * FROM ways_in_tile WHERE tags ? 'highway'
       ),
-      filtered_lines AS (
-        SELECT * FROM non_highways
-        WHERE tags ? 'aerialway'
-          AND %1$L >= 13
-      UNION ALL
-        SELECT * FROM non_highways
-        WHERE tags ? 'aeroway'
-          AND (NOT is_closed OR (is_closed AND (is_explicit_line OR tags->'aeroway' IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))))
-          AND %1$L >= 13
-      UNION ALL
-        SELECT * FROM non_highways
-        WHERE tags ? 'barrier'
-          AND %1$L >= 13
-      UNION ALL
-        SELECT * FROM non_highways
-        WHERE tags ? 'golf'
-          AND (NOT is_closed OR (is_closed AND is_explicit_line))
-          AND %1$L >= 15
-      UNION ALL
-        SELECT w.*
+      filtered_highways AS (
+        SELECT w.id,
+          w.tags
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'bus' AND r.tags ? 'name') > 0
+              THEN hstore('r.route.bus:name', '┃' || STRING_AGG(COALESCE(r.tags->'name', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'bus')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'bus' AND r.tags ? 'ref') > 0
+              THEN hstore('r.route.bus:ref', '┃' || STRING_AGG(COALESCE(r.tags->'ref', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'bus')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'bus' AND r.tags ? 'network') > 0
+              THEN hstore('r.route.bus:network', '┃' || STRING_AGG(COALESCE(r.tags->'network', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'bus')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'bus' AND r.tags ? 'colour') > 0
+              THEN hstore('r.route.bus:colour', '┃' || STRING_AGG(COALESCE(r.tags->'colour', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'bus')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'hiking' AND r.tags ? 'name') > 0
+              THEN hstore('r.route.hiking:name', '┃' || STRING_AGG(COALESCE(r.tags->'name', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'hiking')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'hiking' AND r.tags ? 'ref') > 0
+              THEN hstore('r.route.hiking:ref', '┃' || STRING_AGG(COALESCE(r.tags->'ref', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'hiking')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'hiking' AND r.tags ? 'network') > 0
+              THEN hstore('r.route.hiking:network', '┃' || STRING_AGG(COALESCE(r.tags->'network', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'hiking')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'hiking' AND r.tags ? 'colour') > 0
+              THEN hstore('r.route.hiking:colour', '┃' || STRING_AGG(COALESCE(r.tags->'colour', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'hiking')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'road' AND r.tags ? 'name') > 0
+              THEN hstore('r.route.road:name', '┃' || STRING_AGG(COALESCE(r.tags->'name', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'road')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'road' AND r.tags ? 'ref') > 0
+              THEN hstore('r.route.road:ref', '┃' || STRING_AGG(COALESCE(r.tags->'ref', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'road')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'road' AND r.tags ? 'network') > 0
+              THEN hstore('r.route.road:network', '┃' || STRING_AGG(COALESCE(r.tags->'network', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'road')  || '┃')
+              ELSE hstore('', NULL) END
+            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'road' AND r.tags ? 'colour') > 0
+              THEN hstore('r.route.road:colour', '┃' || STRING_AGG(COALESCE(r.tags->'colour', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'road')  || '┃')
+              ELSE hstore('', NULL) END
+            AS tags,
+          w.geom
         FROM highways w
         LEFT JOIN way_relation_member rw ON w.id = rw.member_id
         LEFT JOIN non_area_relation r ON rw.relation_id = r.id
@@ -603,6 +624,26 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           ))
           OR (%1$L >= 13 AND NOT (w.tags @> 'highway => footway' AND w.tags ? 'footway'))
           OR %1$L >= 15
+        GROUP BY w.id, w.tags, w.geom
+      ),
+      filtered_lines AS (
+        SELECT * FROM non_highways
+        WHERE tags ? 'aerialway'
+          AND %1$L >= 13
+      UNION ALL
+        SELECT * FROM non_highways
+        WHERE tags ? 'aeroway'
+          AND (NOT is_closed OR (is_closed AND (is_explicit_line OR tags->'aeroway' IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))))
+          AND %1$L >= 13
+      UNION ALL
+        SELECT * FROM non_highways
+        WHERE tags ? 'barrier'
+          AND %1$L >= 13
+      UNION ALL
+        SELECT * FROM non_highways
+        WHERE tags ? 'golf'
+          AND (NOT is_closed OR (is_closed AND is_explicit_line))
+          AND %1$L >= 15
       UNION ALL
         SELECT * FROM non_highways
         WHERE tags ? 'indoor'
@@ -644,6 +685,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         WHERE tags ? 'waterway'
       )
       SELECT id, tags::jsonb, ST_Simplify(geom, %3$L, true) AS geom FROM filtered_lines
+      UNION ALL
+      SELECT id, tags::jsonb, ST_Simplify(geom, %3$L, true) AS geom FROM filtered_highways
     ;
     $fmt$, z, env_geom, simplify_tolerance);
   END IF;
@@ -661,7 +704,7 @@ CREATE OR REPLACE FUNCTION function_get_line_layer_for_tile(z integer, env_geom 
     tagged_line_features AS (
       SELECT
         id,
-        jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}}) AS tags,
+        jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}} OR key LIKE 'r.%') AS tags,
         geom
       FROM line_features
       LEFT JOIN LATERAL jsonb_each(tags) AS t(key, value) ON true
@@ -945,7 +988,7 @@ CREATE OR REPLACE FUNCTION function_get_point_layer_for_tile(z integer, env_geom
     tagged_point_features AS (
       SELECT
         id,
-        jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}}) AS tags,
+        jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}} OR key LIKE 'r.%') AS tags,
         geom,
         area_3857,
         osm_type
