@@ -447,7 +447,8 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       UNION ALL
         SELECT * FROM areas
         WHERE tags ? 'building'
-          AND %1$L >= 14
+          -- only show really big buildings at low zooms
+          AND (%1$L >= 14 OR area_3857 > %3$L::real * 50)
     )
     SELECT id, tags::jsonb, ST_Simplify(geom, %4$L, true) AS geom, area_3857, osm_type FROM filtered_areas
   ;
