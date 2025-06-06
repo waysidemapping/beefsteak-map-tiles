@@ -98,6 +98,7 @@ hunting
 ice_skates
 incline
 indoor
+industrial
 informal
 information
 inline_skates
@@ -139,6 +140,7 @@ maxheight
 maxspeed
 maxwidth
 military
+mimics
 min_age
 minspeed
 model
