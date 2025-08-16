@@ -24,7 +24,7 @@ OpenStreetMap has the concept of [top-level tags](https://wiki.openstreetmap.org
 
 For performance reasons, negative top-level tag values like `building=no` are NOT ignored. These are sometimes called [troll tags](https://wiki.openstreetmap.org/wiki/Trolltag) in OSM since they may be technically accurate but often break apps. As such, these tags can be deleted from OSM if they cause issues in Rustic tiles.
 
-| Key | `point` | `line` | `area` | Closed way implies area | Irregularities |
+| OSM key | `point` layer | `line` layer | `area` layer | Closed way implies area | Irregularities |
 |---|---|---|---|---|---|
 |`aerialway`          |✔︎|✔︎|✔︎|No|
 |`aeroway`            |✔︎|✔︎|✔︎|No|
