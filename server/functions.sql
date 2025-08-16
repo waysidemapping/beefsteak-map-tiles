@@ -325,7 +325,7 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'aeroway'
-      AND (is_explicit_area OR tags->'aeroway' NOT IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))
+      AND is_explicit_area
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'advertising'
@@ -379,7 +379,6 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'indoor'
-        AND (is_explicit_area OR tags->'indoor' NOT IN ('wall'))
         -- ignore attribute tags
         AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
         AND %1$L >= 18
@@ -396,14 +395,12 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'man_made'
-      AND (is_explicit_area OR tags->'man_made' NOT IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'miltary'
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'natural'
-        AND (is_explicit_area OR tags->'natural' NOT IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
         AND tags->'natural' NOT IN ('bay', 'peninsula', 'strait', 'coastline', 'water')
         AND %1$L >= 10
     UNION ALL
@@ -419,7 +416,7 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'power'
-      AND (is_explicit_area OR tags->'power' NOT IN ('cable', 'line', 'minor_line'))
+      AND is_explicit_area
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'public_transport'
@@ -433,7 +430,7 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'telecom'
-      AND (is_explicit_area OR tags->'telecom' NOT IN ('line'))
+      AND is_explicit_area
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'tourism'
@@ -643,7 +640,6 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       UNION ALL
         SELECT * FROM non_highways
         WHERE tags ? 'aeroway'
-          AND (NOT is_closed OR (is_closed AND (is_explicit_line OR tags->'aeroway' IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))))
           AND %1$L >= 13
       UNION ALL
         SELECT * FROM non_highways
@@ -652,24 +648,23 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       UNION ALL
         SELECT * FROM non_highways
         WHERE tags ? 'golf'
-          AND (NOT is_closed OR (is_closed AND is_explicit_line))
+          AND (NOT is_closed OR is_explicit_line)
           AND %1$L >= 15
       UNION ALL
         SELECT * FROM non_highways
         WHERE tags ? 'indoor'
-          AND (NOT is_closed OR (is_closed AND (is_explicit_line OR tags->'indoor' IN ('wall'))))
+          AND (NOT is_closed OR is_explicit_line)
           -- ignore attribute tags
           AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
           AND %1$L >= 18
       UNION ALL
         SELECT * FROM non_highways
         WHERE tags ? 'man_made'
-          AND (NOT is_closed OR (is_closed AND (is_explicit_line OR tags->'man_made' IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))))
+          AND (NOT is_closed OR is_explicit_line)
           AND %1$L >= 13
       UNION ALL
         SELECT * FROM non_highways
         WHERE tags ? 'power'
-          AND (NOT is_closed OR (is_closed AND (is_explicit_line OR tags->'power' IN ('cable', 'line', 'minor_line'))))
           AND %1$L >= 13
       UNION ALL
         SELECT * FROM non_highways
@@ -679,7 +674,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         SELECT * FROM non_highways
         WHERE tags ? 'natural'
           AND NOT tags @> 'natural => coastline'
-          AND (NOT is_closed OR (is_closed AND (is_explicit_line OR tags->'natural' IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))))
+          AND (NOT is_closed OR is_explicit_line)
           AND %1$L >= 13
       UNION ALL
         SELECT * FROM non_highways
@@ -688,7 +683,6 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       UNION ALL
         SELECT * FROM non_highways
         WHERE tags ? 'telecom'
-          AND (NOT is_closed OR (is_closed AND (is_explicit_line OR tags->'telecom' IN ('line'))))
           AND %1$L >= 13
       UNION ALL
         SELECT * FROM non_highways
@@ -801,7 +795,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'aeroway'
-        AND (is_node_or_explicit_area OR tags->'aeroway' NOT IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))
+        AND is_node_or_explicit_area
         AND %1$L >= 6
         AND (%1$L >= 12 OR (tags @> 'aeroway => aerodrome' AND tags @> 'aerodrome => international'))
         AND (%1$L >= 15 OR (tags->'aeroway' NOT IN ('gate', 'navigationaid', 'windsock')))
@@ -874,7 +868,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'indoor'
-        AND (is_node_or_explicit_area OR tags->'indoor' NOT IN ('wall'))
         -- ignore attribute tags
         AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
         AND %1$L >= 18
@@ -895,7 +888,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'man_made'
-        AND (is_node_or_explicit_area OR tags->'man_made' NOT IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
         AND %1$L >= 12
         AND (%1$L >= 15 OR tags->'man_made' NOT IN ('flagpole', 'manhole', 'utility_pole'))
     UNION ALL
@@ -905,7 +897,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'natural'
-        AND (is_node_or_explicit_area OR tags->'natural' NOT IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
         AND NOT tags ? 'place'
         AND %1$L >= 10
         -- Most natural areas are landcover, so don't show points for them at low zooms even if they're big
@@ -920,7 +911,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'power'
-        AND (is_node_or_explicit_area OR tags->'power' NOT IN ('cable', 'line', 'minor_line'))
+        AND is_node_or_explicit_area
         AND %1$L >= 15
     UNION ALL
       SELECT * FROM points_in_tile
@@ -963,7 +954,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'telecom'
-        AND (is_node_or_explicit_area OR tags->'telecom' NOT IN ('line'))
+        AND is_node_or_explicit_area
         AND %1$L >= 15
     UNION ALL
       SELECT * FROM points_in_tile
@@ -986,7 +977,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'aeroway'
-        AND (is_node_or_explicit_area OR tags->'aeroway' NOT IN ('jet_bridge', 'parking_position', 'runway', 'taxiway'))
+        AND is_node_or_explicit_area
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'amenity'
@@ -1032,7 +1023,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'indoor'
-        AND (is_node_or_explicit_area OR tags->'indoor' NOT IN ('wall'))
         -- ignore attribute tags
         AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
     UNION ALL
@@ -1050,14 +1040,14 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'man_made'
-        AND (is_node_or_explicit_area OR tags->'man_made' NOT IN ('breakwater', 'cutline', 'dyke', 'embankment', 'gantry', 'goods_conveyor', 'groyne', 'pier', 'pipeline'))
+        AND is_node_or_explicit_area
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'miltary'
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'natural'
-        AND (is_node_or_explicit_area OR tags->'natural' NOT IN ('cliff', 'gorge', 'ridge', 'strait', 'tree_row', 'valley'))
+        AND is_node_or_explicit_area
         AND NOT tags ? 'place'
         AND (tags->'natural' IN ('bay', 'peninsula', 'strait')
             OR tags ? 'name')
@@ -1068,7 +1058,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'power'
-        AND (is_node_or_explicit_area OR tags->'power' NOT IN ('cable', 'line', 'minor_line'))
+        AND is_node_or_explicit_area
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags->'place' IN ('island', 'islet')
@@ -1088,7 +1078,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'telecom'
-        AND (is_node_or_explicit_area OR tags->'telecom' NOT IN ('line'))
+        AND is_node_or_explicit_area
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'tourism'

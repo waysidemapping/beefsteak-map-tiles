@@ -24,42 +24,42 @@ OpenStreetMap has the concept of [top-level tags](https://wiki.openstreetmap.org
 
 For performance reasons, negative top-level tag values like `building=no` are NOT ignored. These are sometimes called [troll tags](https://wiki.openstreetmap.org/wiki/Trolltag) in OSM since they may be technically accurate but often break apps. As such, these tags can be deleted from OSM if they cause issues in Rustic tiles.
 
-| Key | `point` | `line` | `area` | Exceptions |
+| Key | `point` | `line` | `area` | Closed way implies area | Irregularities |
 |---|---|---|---|---|
-|`aerialway`          |✔︎|✔︎|✔︎|
-|`aeroway`            |✔︎|✔︎|✔︎|
-|`advertising`        |✔︎| |✔︎|
-|`amenity`            |✔︎| |✔︎|
-|`area:highway`       | | |✔︎|
-|`barrier`            |✔︎|✔︎|✔︎|
-|`boundary`           |✔︎| |✔︎| Only `boundary=protected_area/aboriginal_lands` are supported at this time.
-|`building`           |✔︎| |✔︎|
-|`building:part`      | | |✔︎|
-|`club`               |✔︎| |✔︎|
-|`craft`              |✔︎| |✔︎|
-|`education`          |✔︎| |✔︎|
-|`emergency`          |✔︎| |✔︎| `emergency=yes/designated/etc.` are not supported as top-level tags since they are assumed to be access tags.
-|`golf`               |✔︎|✔︎|✔︎|
-|`healthcare`         |✔︎| |✔︎|
-|`highway`            |✔︎|✔︎|✔︎|
-|`historic`           |✔︎| |✔︎|
-|`indoor`             |✔︎|✔︎|✔︎| `indoor=yes` is no supported as a top-level tag since it is assumed to be an attribute tag.
-|`information`        |✔︎| |✔︎|
-|`landuse`            |✔︎| |✔︎|
-|`leisure`            |✔︎| |✔︎|
-|`military`           |✔︎| |✔︎|
-|`natural`            |✔︎|✔︎|✔︎| `natural=coastline` features are included only in the `area` layer as aggregate oceans with no attributes. `natural=bay/peninsula/strait` features are not included in the `area` layer since they are large and usually not rendered.
-|`office`             |✔︎| |✔︎|
-|`place`              |✔︎| | | `place=archipelago` points are positioned at the multipolygon's centroid, which is often outside the feature's bounds.
-|`playground`         |✔︎| |✔︎|
-|`power`              |✔︎|✔︎|✔︎|
-|`public_transport`   |✔︎| |✔︎|
-|`railway`            |✔︎|✔︎|✔︎|
-|`route`              | |✔︎| |
-|`shop`               |✔︎| |✔︎|
-|`telecom`            |✔︎|✔︎|✔︎|
-|`tourism`            |✔︎| |✔︎|
-|`waterway`           |✔︎|✔︎|✔︎|
+|`aerialway`          |✔︎|✔︎|✔︎|No|
+|`aeroway`            |✔︎|✔︎|✔︎|No|
+|`advertising`        |✔︎| |✔︎|Yes|
+|`amenity`            |✔︎| |✔︎|Yes|
+|`area:highway`       | | |✔︎|Yes|
+|`barrier`            |✔︎|✔︎|✔︎|No|
+|`boundary`           |✔︎| |✔︎|Yes| Only `boundary=protected_area/aboriginal_lands` are supported at this time.
+|`building`           |✔︎| |✔︎|Yes|
+|`building:part`      | | |✔︎|Yes|
+|`club`               |✔︎| |✔︎|Yes|
+|`craft`              |✔︎| |✔︎|Yes|
+|`education`          |✔︎| |✔︎|Yes|
+|`emergency`          |✔︎| |✔︎|Yes| `emergency=yes/designated/etc.` are not supported as top-level tags since they are assumed to be access tags.
+|`golf`               |✔︎|✔︎|✔︎|Yes|
+|`healthcare`         |✔︎| |✔︎|Yes|
+|`highway`            |✔︎|✔︎|✔︎|No|
+|`historic`           |✔︎| |✔︎|Yes|
+|`indoor`             |✔︎|✔︎|✔︎|Yes| `indoor=yes` is no supported as a top-level tag since it is assumed to be an attribute tag.
+|`information`        |✔︎| |✔︎|Yes|
+|`landuse`            |✔︎| |✔︎|Yes|
+|`leisure`            |✔︎| |✔︎|Yes|
+|`military`           |✔︎| |✔︎|Yes|
+|`natural`            |✔︎|✔︎|✔︎|Yes| `natural=coastline` features are included only in the `area` layer as aggregate oceans with no attributes. `natural=bay/peninsula/strait` features are not included in the `area` layer since they are large and usually not rendered.
+|`office`             |✔︎| |✔︎|Yes|
+|`place`              |✔︎| | |Yes| `place=archipelago` points are positioned at the multipolygon's centroid, which is often outside the feature's bounds.
+|`playground`         |✔︎| |✔︎|Yes|
+|`power`              |✔︎|✔︎|✔︎|No|
+|`public_transport`   |✔︎| |✔︎|Yes|
+|`railway`            |✔︎|✔︎|✔︎|No|
+|`route`              | |✔︎| |No|
+|`shop`               |✔︎| |✔︎|Yes|
+|`telecom`            |✔︎|✔︎|✔︎|No|
+|`tourism`            |✔︎| |✔︎|Yes|
+|`waterway`           |✔︎|✔︎|✔︎|No|
 
 ### Unsupported tags
 
