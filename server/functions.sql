@@ -889,7 +889,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       SELECT * FROM points_in_tile
       WHERE tags ? 'man_made'
         AND %1$L >= 12
-        AND (%1$L >= 15 OR tags->'man_made' NOT IN ('flagpole', 'manhole', 'utility_pole'))
+        AND (%1$L >= 15 OR tags->'man_made' NOT IN ('flagpole', 'manhole', 'utility_pole', 'surveillance'))
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'miltary'
