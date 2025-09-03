@@ -18,7 +18,7 @@ PLANET_FILE="$SCRATCH_DIR/planet-latest.osm.pbf"
 FLAT_NODES_FILE="$SCRATCH_DIR/flatnodes"
 
 MARTIN_CONFIG_FILE="martin_config.yaml"
-MARTIN_VERSION="0.16.0"
+MARTIN_VERSION="0.18.1"
 
 # Create helper directory
 if [ ! -d "$SCRATCH_DIR" ]; then
