@@ -517,7 +517,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         JOIN non_area_relation r ON rw.relation_id = r.id
         WHERE w.geom && %2$L
           AND r.tags @> 'route => hiking'
-          AND r.length_3857 > 100000
+          AND r.bbox_diagonal_length > 100000
         GROUP BY w.id, w.tags, w.geom
       UNION ALL
         SELECT NULL::int8 AS id, jsonb_build_object('railway', tags->'railway', 'usage', tags->'usage') AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %3$L, true) AS geom
@@ -585,7 +585,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           FROM highways w
           LEFT JOIN way_relation_member rw ON w.id = rw.member_id
           LEFT JOIN non_area_relation r ON rw.relation_id = r.id
-          WHERE r.tags @> 'route => hiking' AND r.length_3857 > 100000
+          WHERE r.tags @> 'route => hiking' AND r.bbox_diagonal_length > 100000
       ),
       filtered_lines AS (
         SELECT * FROM non_highways
