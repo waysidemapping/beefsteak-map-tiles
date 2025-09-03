@@ -73,11 +73,11 @@ local non_area_relation_table = osm2pgsql.define_table({
         { column = 'relation_type', type = 'text', not_null = true },
         { column = 'tags', type = 'hstore', not_null = true },
         { column = 'length_3857', type = 'real' },
-        { column = 'centroid', type = 'point', proj = '3857' }
+        { column = 'bbox_diagonal_length', type = 'real' }
     },
     indexes = {
-        { column = 'centroid', method = 'gist' },
         { column = 'length_3857', method = 'btree' },
+        { column = 'bbox_diagonal_length', method = 'btree' },
         { column = 'tags', method = 'gin' }
     }
 })
@@ -202,12 +202,14 @@ function osm2pgsql.process_relation(object)
             }
             area_relation_table:insert(row)
         else
+            local geom = object:as_geometrycollection():transform(3857)
+            local minX, minY, maxX, maxY = geom:get_bbox()
             non_area_relation_table:insert({
                 id = object.id,
                 relation_type = relType,
                 tags = object.tags,
                 length_3857 = object:as_multilinestring():transform(3857):length(),
-                centroid = object:as_geometrycollection():transform(3857):centroid()
+                bbox_diagonal_length = math.sqrt(math.pow(maxX - minX, 2) + math.pow(maxY - minY, 2))
             })
         end
 
