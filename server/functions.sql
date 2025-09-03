@@ -587,52 +587,6 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           LEFT JOIN non_area_relation r ON rw.relation_id = r.id
           WHERE r.tags @> 'route => hiking' AND r.length_3857 > 100000
       ),
-      filtered_and_tagged_highways AS (
-        SELECT w.id,
-          w.tags
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'bus' AND r.tags ? 'name') > 0
-              THEN hstore('r.route.bus:name', '┃' || STRING_AGG(COALESCE(r.tags->'name', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'bus')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'bus' AND r.tags ? 'ref') > 0
-              THEN hstore('r.route.bus:ref', '┃' || STRING_AGG(COALESCE(r.tags->'ref', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'bus')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'bus' AND r.tags ? 'network') > 0
-              THEN hstore('r.route.bus:network', '┃' || STRING_AGG(COALESCE(r.tags->'network', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'bus')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'bus' AND r.tags ? 'colour') > 0
-              THEN hstore('r.route.bus:colour', '┃' || STRING_AGG(COALESCE(r.tags->'colour', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'bus')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'hiking' AND r.tags ? 'name') > 0
-              THEN hstore('r.route.hiking:name', '┃' || STRING_AGG(COALESCE(r.tags->'name', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'hiking')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'hiking' AND r.tags ? 'ref') > 0
-              THEN hstore('r.route.hiking:ref', '┃' || STRING_AGG(COALESCE(r.tags->'ref', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'hiking')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'hiking' AND r.tags ? 'network') > 0
-              THEN hstore('r.route.hiking:network', '┃' || STRING_AGG(COALESCE(r.tags->'network', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'hiking')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'hiking' AND r.tags ? 'colour') > 0
-              THEN hstore('r.route.hiking:colour', '┃' || STRING_AGG(COALESCE(r.tags->'colour', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'hiking')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'road' AND r.tags ? 'name') > 0
-              THEN hstore('r.route.road:name', '┃' || STRING_AGG(COALESCE(r.tags->'name', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'road')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'road' AND r.tags ? 'ref') > 0
-              THEN hstore('r.route.road:ref', '┃' || STRING_AGG(COALESCE(r.tags->'ref', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'road')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'road' AND r.tags ? 'network') > 0
-              THEN hstore('r.route.road:network', '┃' || STRING_AGG(COALESCE(r.tags->'network', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'road')  || '┃')
-              ELSE hstore('', NULL) END
-            || CASE WHEN COUNT(r.id) FILTER (WHERE r.tags -> 'route' = 'road' AND r.tags ? 'colour') > 0
-              THEN hstore('r.route.road:colour', '┃' || STRING_AGG(COALESCE(r.tags->'colour', ''), '┃' ORDER BY r.id) FILTER (WHERE r.tags->'route' = 'road')  || '┃')
-              ELSE hstore('', NULL) END
-            AS tags,
-          w.geom
-        FROM filtered_highways w
-        LEFT JOIN way_relation_member rw ON w.id = rw.member_id
-        LEFT JOIN non_area_relation r ON rw.relation_id = r.id
-        GROUP BY w.id, w.tags, w.geom
-      ),
       filtered_lines AS (
         SELECT * FROM non_highways
         WHERE tags ? 'aerialway'
@@ -708,7 +662,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       UNION ALL
       SELECT id, tags::jsonb, ST_Simplify(geom, %3$L, true) AS geom FROM admin_boundary_lines
       UNION ALL
-      SELECT id, tags::jsonb, ST_Simplify(geom, %3$L, true) AS geom FROM filtered_and_tagged_highways
+      SELECT id, tags::jsonb, ST_Simplify(geom, %3$L, true) AS geom FROM filtered_highways
     ;
     $fmt$, z, env_geom, simplify_tolerance);
   END IF;
