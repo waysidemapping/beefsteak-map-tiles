@@ -534,11 +534,18 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         FROM ways_in_tile
         WHERE tags @> 'route => ferry'
       UNION ALL
-        SELECT NULL::int8 AS id, jsonb_build_object('waterway', tags->'waterway') AS tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %3$L, false) AS geom
-        FROM ways_in_tile
-        WHERE tags @> 'waterway => river'
-          OR tags @> 'waterway => flowline'
-        GROUP BY tags->'waterway', tags->'name'
+        SELECT NULL::int8 AS id,
+          jsonb_build_object('waterway', 'river') AS tags,
+          ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(w.geom))), %3$L, true) AS geom
+        FROM way w
+        JOIN way_relation_member rw ON w.id = rw.member_id
+        JOIN non_area_relation r ON rw.relation_id = r.id
+        WHERE w.geom && %2$L
+          AND w.tags ? 'waterway'
+          AND rw.member_role = 'main_stream'
+          AND r.relation_type = 'waterway'
+          AND (r.bbox_diagonal_length > 100000 OR w.tags->'order:strahler' IN ('8', '9', '10', '11', '12', '13', '14', '15'))
+        GROUP BY w.id, w.tags, w.geom
       ;
       $fmt$, z, env_geom, simplify_tolerance);
     ELSE
