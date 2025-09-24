@@ -89,7 +89,8 @@ local node_relation_member_table = osm2pgsql.define_table({
         { column = 'member_role', type = 'text' }
     },
     indexes = {
-        { column = 'member_id', method = 'btree', include = 'relation_id' }
+        { column = 'member_id', method = 'btree', include = 'relation_id' },
+        { column = 'member_role', method = 'btree' }
     }
 })
 
@@ -102,7 +103,8 @@ local way_relation_member_table = osm2pgsql.define_table({
         { column = 'member_role', type = 'text' }
     },
     indexes = {
-        { column = 'member_id', method = 'btree', include = 'relation_id' }
+        { column = 'member_id', method = 'btree', include = 'relation_id' },
+        { column = 'member_role', method = 'btree' }
     }
 })
 
@@ -115,7 +117,8 @@ local relation_relation_member_table = osm2pgsql.define_table({
         { column = 'member_role', type = 'text' }
     },
     indexes = {
-        { column = 'member_id', method = 'btree', include = 'relation_id' }
+        { column = 'member_id', method = 'btree', include = 'relation_id' },
+        { column = 'member_role', method = 'btree' }
     }
 })
 
