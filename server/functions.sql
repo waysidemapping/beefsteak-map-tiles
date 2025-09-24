@@ -687,7 +687,7 @@ CREATE OR REPLACE FUNCTION function_get_line_layer_for_tile(z integer, env_geom 
   AS $line_function_body$
   WITH
     line_features AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom FROM function_get_line_features(z, env_geom, sqrt(2.0 * (ST_Area(env_geom) * 0.000001))::real, (((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2)::real)
+      SELECT _id AS id, _tags AS tags, _geom AS geom FROM function_get_line_features(z, env_geom, sqrt(2.0 * (ST_Area(env_geom) * 0.000000075))::real, (((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2)::real)
     ),
     tagged_line_features AS (
       SELECT
