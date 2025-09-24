@@ -401,7 +401,12 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     UNION ALL
       SELECT * FROM non_buildings
       WHERE tags ? 'natural'
-        AND tags->'natural' NOT IN ('bay', 'coastline', 'desert', 'mountain_range', 'peninsula', 'strait', 'water')
+        AND tags->'natural' NOT IN (
+          -- Exclude natural areas features that usually aren't rendered
+          'bay', 'desert', 'mountain_range', 'peninsula', 'strait',
+          -- and features that are handled separately
+          'coastline', 'water'
+        )
         AND %1$L >= 10
     UNION ALL
       SELECT * FROM non_buildings
@@ -863,9 +868,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'natural'
-        AND NOT tags ? 'place'
         AND %1$L >= 10
-        -- Most natural areas are landcover, so don't show points for them at low zooms even if they're big
         AND (
           %1$L >= 15
           OR tags->'natural' IN ('peak')
@@ -997,9 +1000,8 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'landuse'
-        AND (tags->'landuse' IN ('allotments', 'cemetery', 'commercial', 'industrial', 'retail')
-            OR tags ? 'name')
-        AND %1$L >= 10
+        -- Assume named `landuse` areas are POIs, otherwise landcover
+        AND tags ? 'name'
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'leisure'
@@ -1012,10 +1014,8 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'natural'
-        AND NOT tags ? 'place'
-        AND (tags->'natural' IN ('bay', 'desert', 'mountain_range', 'peninsula', 'strait')
-            OR tags ? 'name')
-        AND %1$L >= 10
+        -- Assume named `natural` areas are POIs, otherwise landcover
+        AND tags ? 'name'
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'office'
