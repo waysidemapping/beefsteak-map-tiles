@@ -95,6 +95,8 @@ horse
 hot_water
 hov
 hunting
+iata
+icao
 ice_skates
 incline
 indoor

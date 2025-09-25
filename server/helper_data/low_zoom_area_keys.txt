@@ -15,6 +15,7 @@ healthcare
 highway
 historic
 information
+intermittent
 landuse
 leaf_cycle
 leaf_type
