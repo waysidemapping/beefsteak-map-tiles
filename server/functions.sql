@@ -296,6 +296,60 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
   LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
   BEGIN
+  IF z < 10 THEN
+  RETURN QUERY EXECUTE format($fmt$
+   WITH
+    closed_ways AS (
+      SELECT id, tags, geom, area_3857, 'w' AS osm_type, is_explicit_area FROM way
+      WHERE geom && %2$L
+        AND is_closed
+        AND NOT is_explicit_line
+        AND area_3857 > %3$L
+    ),
+    relation_areas AS (
+      SELECT id, tags, geom, area_3857, 'r' AS osm_type, true AS is_explicit_area FROM area_relation
+      WHERE geom && %2$L
+        AND area_3857 > %3$L
+    ),
+    areas AS (
+        SELECT * FROM closed_ways
+      UNION ALL
+        SELECT * FROM relation_areas
+    ),
+    filtered_areas AS (
+        SELECT * FROM areas
+        WHERE tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'information', 'landuse', 'leisure', 'man_made', 'military', 'office', 'public_transport', 'shop', 'tourism']
+      UNION ALL
+        SELECT * FROM areas
+        WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
+        AND is_explicit_area
+      UNION ALL
+        SELECT * FROM areas
+        WHERE tags @> 'boundary => protected_area'
+          OR tags @> 'boundary => aboriginal_lands'
+      UNION ALL
+        SELECT * FROM areas
+        WHERE tags ? 'natural'
+          AND tags->'natural' NOT IN (
+            -- Exclude natural features that usually aren't rendered as areas
+            'bay', 'coastline', 'desert', 'mountain_range', 'peninsula', 'strait'
+          )
+    ),
+    deduped_areas AS (
+      -- This will fail if a way and relation in the same tile have the same ID
+      SELECT DISTINCT ON (id) * FROM filtered_areas
+    )
+    SELECT
+      NULL::int8 AS id,
+      jsonb_build_object({{LOW_ZOOM_AREA_JSONB_KEY_MAPPINGS}}) AS tags,
+      ST_Simplify(ST_Multi(ST_Collect(geom)), %4$L, true) AS geom,
+      NULL::real AS area_3857,
+      NULL::text AS osm_type
+    FROM deduped_areas
+    GROUP BY tags
+  ;
+  $fmt$, z, env_geom, min_area, simplify_tolerance);
+  ELSE
   RETURN QUERY EXECUTE format($fmt$
   WITH
     closed_ways AS (
@@ -455,6 +509,7 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     SELECT id, tags::jsonb, ST_Simplify(geom, %4$L, true) AS geom, area_3857, osm_type FROM filtered_areas
   ;
   $fmt$, z, env_geom, min_area, simplify_tolerance);
+END IF;
 END;
 $$;
 
