@@ -159,8 +159,8 @@ function process_way(object)
 
     way_table:insert({
         tags = object.tags,
-        is_explicit_area = object.tags.area == 'yes' or (object.tags.building ~= nil and object.tags.building ~= 'no'),
-        is_explicit_line = object.tags.area == 'no',
+        is_explicit_area = object.is_closed and (object.tags.area == 'yes' or object.tags.building ~= nil),
+        is_explicit_line = not object.is_closed or object.tags.area == 'no',
         area_3857 = area_3857,
         length_3857 = length_3857,
         bbox_diagonal_length = math.sqrt(math.pow(maxX - minX, 2) + math.pow(maxY - minY, 2)),
