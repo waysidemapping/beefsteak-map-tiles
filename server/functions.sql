@@ -664,7 +664,31 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     ),
     points_filtered_by_zoom AS (
       SELECT * FROM points_in_tile
-      WHERE tags ?| ARRAY['advertising', 'club', 'craft', 'education', 'healthcare', 'historic', 'information', 'miltary', 'office', 'shop']
+      WHERE tags @> 'place => continent'
+        OR tags @> 'place => ocean'
+        OR tags @> 'place => sea'
+        OR tags @> 'place => country'
+        OR tags @> 'place => state'
+        OR tags @> 'place => province'
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags @> 'place => city'
+        AND %1$L >= 5
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags @> 'place => town'
+        AND %1$L >= 7
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags @> 'place => village'
+        AND %1$L >= 9
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags @> 'natural => peak'
+        AND %1$L >= 10
+    UNION ALL
+      SELECT * FROM points_in_tile
+      WHERE tags ?| ARRAY['advertising', 'club', 'craft', 'education', 'healthcare', 'historic', 'information', 'miltary', 'office', 'place', 'shop']
         AND %1$L >= 12
     UNION ALL
       SELECT * FROM points_in_tile
@@ -734,20 +758,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
         AND (
           %1$L >= 15
           OR tags->'natural' IN ('peak')
-        )
-    UNION ALL
-      SELECT * FROM points_in_tile
-      WHERE tags ? 'place'
-        AND (
-          (
-            tags->'population' ~ '^\d+$'
-            AND (
-              (tags->'capital' IN ('2', '4') OR (tags->'population')::integer > 1000000)
-              OR (%1$L >= %1$L AND (tags->'place' IN ('city') AND (tags->'population')::integer > 100000))
-              OR (%1$L >= 8 AND (tags->'capital' IN ('6') OR tags->'place' IN ('city')))
-            )
-          )
-          OR %1$L >= 12
         )
     UNION ALL
       SELECT * FROM points_in_tile
