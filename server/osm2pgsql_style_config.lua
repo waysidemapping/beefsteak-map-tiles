@@ -55,13 +55,11 @@ local area_relation_table = osm2pgsql.define_table({
         { column = 'tags', type = 'hstore', not_null = true },
         { column = 'area_3857', type = 'real' },
         { column = 'geom', type = 'multipolygon', proj = '3857', not_null = true },
-        { column = 'point_on_surface', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
-        { column = 'centroid', type = 'point', proj = '3857' }
+        { column = 'point_on_surface', sql_type = 'GEOMETRY(Point, 3857)', create_only = true }
     },
     indexes = {
         { column = 'geom', method = 'gist' },
         { column = 'point_on_surface', method = 'gist' },
-        { column = 'centroid', method = 'gist' },
         { column = 'area_3857', method = 'btree' },
         { column = 'tags', method = 'gin' }
     }
@@ -200,7 +198,6 @@ function osm2pgsql.process_relation(object)
             local row = {
                 tags = object.tags,
                 geom = geom,
-                centroid = geom:centroid(),
                 area_3857 = geom:area()
             }
             area_relation_table:insert(row)
