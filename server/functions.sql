@@ -318,7 +318,7 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
     ),
     filtered_areas AS (
         SELECT * FROM areas
-        WHERE tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'information', 'landuse', 'leisure', 'man_made', 'military', 'office', 'public_transport', 'shop', 'tourism']
+        WHERE tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'information', 'landuse', 'leisure', 'man_made', 'military', 'natural', 'office', 'public_transport', 'shop', 'tourism']
       UNION ALL
         SELECT * FROM areas
         WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
@@ -327,13 +327,6 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
         SELECT * FROM areas
         WHERE tags @> 'boundary => protected_area'
           OR tags @> 'boundary => aboriginal_lands'
-      UNION ALL
-        SELECT * FROM areas
-        WHERE tags ? 'natural'
-          AND tags->'natural' NOT IN (
-            -- Exclude natural features that usually aren't rendered as areas
-            'bay', 'coastline', 'desert', 'mountain_range', 'peninsula', 'strait'
-          )
     ),
     deduped_areas AS (
       -- This will fail if a way and relation in the same tile have the same ID
@@ -369,133 +362,21 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       UNION ALL
         SELECT * FROM relation_areas
     ),
-    non_buildings AS (
-      SELECT * FROM areas WHERE NOT tags ? 'building'
-    ),
     filtered_non_buildings AS (
-      SELECT * FROM non_buildings
-      WHERE tags ? 'aerialway'
+      SELECT * FROM areas
+      WHERE tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'information', 'landuse', 'leisure', 'man_made', 'military', 'natural', 'office', 'public_transport', 'shop', 'tourism']
+    UNION ALL
+      SELECT * FROM areas
+      WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
       AND is_explicit_area
     UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'aeroway'
-      AND is_explicit_area
+      SELECT * FROM areas
+      WHERE tags ?| ARRAY['area:highway', 'building:part', 'indoor', 'playground']
+      AND %1$L >= 18
     UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'advertising'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'amenity'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'area:highway'
-        AND %1$L >= 18
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'barrier'
-      AND is_explicit_area
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE (tags @> 'boundary => protected_area'
-        OR tags @> 'boundary => aboriginal_lands')
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'building:part'
-        AND %1$L >= 18
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'club'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'craft'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'education'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'emergency'
-        -- ignore access tags
-        AND tags->'emergency' NOT IN ('designated', 'destination', 'customers', 'no', 'official', 'permissive', 'private', 'unknown', 'yes')
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'golf'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'healthcare'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'highway'
-      AND is_explicit_area
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'historic'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'indoor'
-        -- ignore attribute tags
-        AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
-        AND %1$L >= 18
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'information'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'landuse'
-        AND %1$L >= 10
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'leisure'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'man_made'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'miltary'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'natural'
-        AND tags->'natural' NOT IN (
-          -- Exclude natural features that usually aren't rendered as areas
-          'bay', 'coastline', 'desert', 'mountain_range', 'peninsula', 'strait',
-          -- and features that are handled separately
-          'water'
-        )
-        AND %1$L >= 10
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags @> 'natural => water'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'office'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'playground'
-        AND %1$L >= 18
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'power'
-      AND is_explicit_area
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'public_transport'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'railway'
-      AND is_explicit_area
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'shop'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'telecom'
-      AND is_explicit_area
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'tourism'
-    UNION ALL
-      SELECT * FROM non_buildings
-      WHERE tags ? 'waterway'
-      AND is_explicit_area
+      SELECT * FROM areas
+      WHERE tags @> 'boundary => protected_area'
+        OR tags @> 'boundary => aboriginal_lands'
     ),
     filtered_areas AS (
         SELECT * FROM filtered_non_buildings
@@ -679,8 +560,6 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         SELECT * FROM non_highways
         WHERE tags ? 'indoor'
           AND (NOT is_closed OR is_explicit_line)
-          -- ignore attribute tags
-          AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
           AND %1$L >= 18
       UNION ALL
         SELECT * FROM non_highways
@@ -869,8 +748,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'emergency'
-        -- ignore access tags
-        AND tags->'emergency' NOT IN ('designated', 'destination', 'customers', 'no', 'official', 'permissive', 'private', 'unknown', 'yes')
         AND %1$L >= 12
         AND (%1$L >= 14 OR (tags->'emergency' NOT IN ('fire_hydrant')))
     UNION ALL
@@ -893,8 +770,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'indoor'
-        -- ignore attribute tags
-        AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
         AND %1$L >= 18
     UNION ALL
       SELECT * FROM points_in_tile
@@ -1027,8 +902,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'emergency'
-        -- ignore access tags
-        AND tags->'emergency' NOT IN ('designated', 'destination', 'customers', 'no', 'official', 'permissive', 'private', 'unknown', 'yes')
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'golf'
@@ -1045,8 +918,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'indoor'
-        -- ignore attribute tags
-        AND tags->'indoor' NOT IN ('no', 'unknown', 'yes')
     UNION ALL
       SELECT * FROM large_centerpoints
       WHERE tags ? 'information'

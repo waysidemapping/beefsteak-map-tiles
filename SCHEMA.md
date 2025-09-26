@@ -8,11 +8,11 @@ Rustic tiles have just three layers, one for each geometry type. Note that these
 
 ### `area`
 
-Features in the `area` layer correspond to multipolygon relations, boundary relations, or closed ways with certain tagging. (A closed way is one where the first and last nodes are the same.) An `area=yes` tag will always qualify a closed way to be in this layer, while an `area=no` tag will always disqualify. Open ways are never included in the `area` layer regardless of tags.
+Features in the `area` layer correspond to `type=multipolygon` relations, `type=boundary` relations, or closed ways with certain tagging. A closed way is one where the first and last nodes are the same. An `area=yes` or `building` tag will always qualify a closed way to be in this layer, while an `area=no` tag will always disqualify. Open ways are never included in the `area` layer regardless of tags.
 
 ### `line`
 
-Features in the `line` layer correspond to open ways, or closed ways with certain tagging. An `area=no` tag will always qualify a closed way to be in this layer, while an `area=yes` tag will always disqualify. The `area` tag has no effect on open ways.
+Features in the `line` layer correspond to open ways, or closed ways with certain tagging. An `area=no` tag will always qualify a closed way to be in this layer, while an `area=yes` or `building` tag will always disqualify. The `area` tag has no effect on open ways.
 
 ### `point`
 
@@ -22,7 +22,9 @@ Features in the `point` layer correspond to tagged nodes, or the centerpoints of
 
 OpenStreetMap has the concept of [top-level tags](https://wiki.openstreetmap.org/wiki/Top-level_tag) which define the main type of each feature. Rustic tiles include only features tagged with a supported top-level tag. Each tag has specific geometry expectations.
 
-For performance reasons, negative top-level tag values like `building=no` are NOT ignored. These are sometimes called [troll tags](https://wiki.openstreetmap.org/wiki/Trolltag) in OSM since they may be technically accurate but often break apps. As such, these tags can be deleted from OSM if they cause issues in Rustic tiles.
+For performance and consistency, features with the top-level tag values `no` and `unknown` (e.g. `building=no` or `shop=unknown`) are NOT ignored. These are sometimes called [troll tags](https://wiki.openstreetmap.org/wiki/Trolltag) in OSM since they may be technically accurate but often break apps. As such, these tags can be deleted from OSM if they cause issues in Rustic tiles.
+
+Similarly, certain top-level keys such as `emergency` and `indoor` are used as attribute tags by some mappers, like `emergency=designated`. Again, for performance and consistency, features with these tag values are NOT ignored and may cause unexpected behavior.
 
 | OSM key | `point` layer | `line` layer | `area` layer | Closed way implies area | Irregularities |
 |---|---|---|---|---|---|
@@ -38,18 +40,18 @@ For performance reasons, negative top-level tag values like `building=no` are NO
 |`club`               |✔︎| |✔︎|Yes|
 |`craft`              |✔︎| |✔︎|Yes|
 |`education`          |✔︎| |✔︎|Yes|
-|`emergency`          |✔︎| |✔︎|Yes| `emergency=yes/designated/etc.` are not supported as top-level tags since they are assumed to be access tags.
+|`emergency`          |✔︎| |✔︎|Yes|
 |`golf`               |✔︎|✔︎|✔︎|Yes|
 |`healthcare`         |✔︎| |✔︎|Yes|
 |`highway`            |✔︎|✔︎|✔︎|No |
 |`historic`           |✔︎| |✔︎|Yes|
-|`indoor`             |✔︎|✔︎|✔︎|Yes| `indoor=yes` is no supported as a top-level tag since it is assumed to be an attribute tag.
+|`indoor`             |✔︎|✔︎|✔︎|Yes|
 |`information`        |✔︎| |✔︎|Yes|
 |`landuse`            |✔︎| |✔︎|Yes|
 |`leisure`            |✔︎| |✔︎|Yes|
 |`man_made`           |✔︎|✔︎|✔︎|Yes|
 |`military`           |✔︎| |✔︎|Yes|
-|`natural`            |✔︎|✔︎|✔︎|Yes| `natural=coastline` features are included in the `area` layer as aggregate oceans with no attributes. `natural=bay/desert/mountain_range/peninsula/strait` features are not included in the `area` layer since they are large and usually not rendered as areas.
+|`natural`            |✔︎|✔︎|✔︎|Yes| `natural=coastline` features are included in the `area` layer as aggregate oceans with no other attributes.
 |`office`             |✔︎| |✔︎|Yes|
 |`place`              |✔︎| | |Yes| `place=archipelago` points are positioned at the multipolygon's centroid, which is often outside the feature's bounds.
 |`playground`         |✔︎| |✔︎|Yes|
