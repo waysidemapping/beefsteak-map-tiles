@@ -53,7 +53,7 @@ Similarly, certain top-level keys such as `emergency` and `indoor` are used as a
 |`military`           |✔︎| |✔︎|Yes|
 |`natural`            |✔︎|✔︎|✔︎|Yes| `natural=coastline` features are included in the `area` layer as aggregate oceans with no other attributes.
 |`office`             |✔︎| |✔︎|Yes|
-|`place`              |✔︎| | |Yes| `place=archipelago` points are positioned at the multipolygon's centroid, which is often outside the feature's bounds.
+|`place`              |✔︎| | |Yes|
 |`playground`         |✔︎| |✔︎|Yes|
 |`power`              |✔︎|✔︎|✔︎|No |
 |`public_transport`   |✔︎| |✔︎|Yes|

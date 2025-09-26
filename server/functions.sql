@@ -738,7 +738,6 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     UNION ALL
       SELECT * FROM points_in_tile
       WHERE tags ? 'place'
-        AND NOT tags @> 'place => archipelago'
         AND (
           (
             tags->'population' ~ '^\d+$'
@@ -781,19 +780,10 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       SELECT * FROM large_centerpoints
       WHERE tags @> 'boundary => protected_area'
         OR tags @> 'boundary => aboriginal_lands'
-    ),
-    relation_area_centroids AS (
-      SELECT id, tags, centroid AS geom, area_3857, 'r' AS osm_type FROM area_relation
-      WHERE centroid && %2$L
-        AND tags @> 'place => archipelago'
-        AND area_3857 > %3$L
-        AND area_3857 < %4$L
     )
       SELECT id, tags::jsonb, geom, area_3857, osm_type FROM points_filtered_by_zoom
     UNION ALL
       SELECT id, tags::jsonb, geom, area_3857, osm_type FROM points_filtered_by_area
-    UNION ALL
-      SELECT id, tags::jsonb, geom, area_3857, osm_type FROM relation_area_centroids
     ;
     $fmt$, z, env_geom, min_area, max_area);
   END;
