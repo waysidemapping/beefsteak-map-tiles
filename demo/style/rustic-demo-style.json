@@ -45,10 +45,23 @@
                 ["has", "railway"],
                 ["has", "route"],
                 ["has", "waterway"],
+                ["has", "power"],
                 ["in", "┃administrative┃", ["get", "r.boundary"]]
             ]],
             "paint": {
-                "line-color": "Purple"
+                "line-color": "Purple",
+                "line-opacity": 0.5
+            }
+        },
+        {
+            "id": "power-line",
+            "source": "rustic",
+            "source-layer": "line",
+            "type": "line",
+            "filter": ["has", "power"],
+            "paint": {
+                "line-color": "DarkGoldenrod",
+                "line-opacity": 0.75
             }
         },
         {
@@ -58,7 +71,7 @@
             "type": "line",
             "filter": ["has", "barrier"],
             "paint": {
-                "line-color": "Black",
+                "line-color": "Grey",
                 "line-opacity": 0.5
             }
         },
@@ -81,7 +94,7 @@
             "filter": ["has", "railway"],
             "paint": {
                 "line-color": "Black",
-                "line-opacity": 1
+                "line-opacity": 0.75
             }
         },
         {
@@ -96,7 +109,7 @@
                     ["in", ["get", "highway"], ["literal", ["bridleway", "corridor", "cycleway",  "footway", "path", "steps"]]], "DarkGreen",
                     "Red"
                 ],
-                "line-opacity": 1
+                "line-opacity": 0.75
             }
         },
         {
@@ -117,7 +130,7 @@
             "type": "fill",
             "filter": ["has", "building"],
             "paint": {
-                "fill-color": "Orange",
+                "fill-color": "SandyBrown",
                 "fill-opacity": 0.5
             }
         },
