@@ -166,7 +166,6 @@ office
 ohv
 oneway
 openfire
-opening_hours
 operator
 order:strahler
 parking
