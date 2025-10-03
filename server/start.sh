@@ -21,7 +21,7 @@ LUA_STYLE_FILE="osm2pgsql_style_config.lua"
 FLAT_NODES_FILE="$SCRATCH_DIR/flatnodes"
 
 MARTIN_CONFIG_FILE="martin_config.yaml"
-MARTIN_VERSION="0.19.2"
+MARTIN_VERSION="0.19.3"
 
 [[ "$ARCHITECTURE" == "x86_64" || "$ARCHITECTURE" == "aarch64" ]] && echo "Architecture: $ARCHITECTURE" || { echo "Unsupported architecture: $ARCHITECTURE"; exit 1; }
 
@@ -39,7 +39,7 @@ else
     echo "User '$DB_USER' created."
 fi
 
-# We need to install needed commands here instead of in the Docker image since
+# We need to install all of our prerequisite commands here instead of in the Docker image since
 # we may not always deploy via the Docker image
 
 # Install wget: needed to fetch planetfile
@@ -58,6 +58,20 @@ else
     echo "git not found, installing..."
     sudo apt update && sudo apt install -y git
     command -v git &> /dev/null && echo "git successfully installed." || { echo "Failed to install git."; exit 1; }
+fi
+
+# Install Martin: the tileserver
+if ! command -v martin >/dev/null 2>&1; then
+    echo "Martin not found. Downloading binary..."
+    MARTIN_BINARY_NAME="martin-${ARCHITECTURE}-unknown-linux-gnu"
+    wget -O "${MARTIN_BINARY_NAME}.tar.gz" "https://github.com/maplibre/martin/releases/download/martin-v${MARTIN_VERSION}/${MARTIN_BINARY_NAME}.tar.gz" || { echo "Download failed"; exit 1; }
+    mkdir "${MARTIN_BINARY_NAME}"
+    tar -xvzf "${MARTIN_BINARY_NAME}.tar.gz" -C "${MARTIN_BINARY_NAME}" || { echo "Extraction failed"; exit 1; }
+    sudo mv -f "${MARTIN_BINARY_NAME}/martin" /usr/local/bin/ || { echo "Move failed"; exit 1; }
+    rm -rf "${MARTIN_BINARY_NAME}.tar.gz" "${MARTIN_BINARY_NAME}" 
+    martin --version
+else
+    echo "Martin is already installed: $(martin --version)"
 fi
 
 # Need to do this every time unfortunately
@@ -259,38 +273,5 @@ fi
 # In order to pass validation, we have to do this after the database has been populated 
 /bin/bash update_sql_functions.sh
 
-# Install build-essential: needed to install Martin
-if ! dpkg -s build-essential >/dev/null 2>&1; then
-    echo "Installing build-essential..."
-    apt update && apt install -y build-essential
-else
-    echo "build-essential already installed."
-fi
-
-# Install rust: needed to install Martin
-if ! command -v rustc >/dev/null 2>&1; then
-    echo "Rust not found. Installing Rust..."
-    export RUSTUP_HOME=/usr/local/rustup
-    export CARGO_HOME=/usr/local/cargo
-    export PATH=/usr/local/cargo/bin:$PATH
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
-    # add cargo to path in current shell without needing to restart
-    . "/usr/local/cargo/env"
-    rustc --version
-else
-    echo "Rust is already installed: $(rustc --version)"
-fi
-
-# Install Martin: the tileserver
-if ! command -v martin >/dev/null 2>&1; then
-    echo "Martin not found. Installing with cargo..."
-    cargo install cargo-binstall
-    cargo binstall martin --version "$MARTIN_VERSION" --no-confirm
-    martin --version
-else
-    echo "Martin is already installed: $(martin --version)"
-fi
-
 # start tileserver
-sudo -u "$DB_USER" -- /usr/local/cargo/bin/martin --config "$MARTIN_CONFIG_FILE"
+sudo -u "$DB_USER" -- /usr/local/bin/martin --config "$MARTIN_CONFIG_FILE"
