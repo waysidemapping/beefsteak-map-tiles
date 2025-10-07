@@ -825,7 +825,7 @@ $function_body$;
 COMMENT ON FUNCTION function_get_rustic_tile IS
 $tilejson$
 {
-  "description => Delightfully unrefined OpenStreetMap tiles",
+  "description => Server-farm-to-table OpenStreetMap tiles",
   "attribution => © OpenStreetMap",
   "vector_layers": [
     {
