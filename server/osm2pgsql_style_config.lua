@@ -55,7 +55,7 @@ local way_no_explicit_line_table = osm2pgsql.define_table({
         { column = 'is_explicit_area', type = 'boolean', not_null = true },
         { column = 'area_3857', type = 'real', not_null = true },
         { column = 'bbox_diagonal_length', type = 'real', not_null = true },
-        { column = 'point_on_surface', sql_type = 'GEOMETRY(Point, 3857)', create_only = true }
+        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
@@ -63,7 +63,7 @@ local way_no_explicit_line_table = osm2pgsql.define_table({
         { column = 'is_explicit_area', method = 'btree' },
         { column = 'area_3857', method = 'btree' },
         { column = 'bbox_diagonal_length', method = 'btree' },
-        { column = 'point_on_surface', method = 'gist' }
+        { column = 'label_point', method = 'gist' }
     }
 })
 
