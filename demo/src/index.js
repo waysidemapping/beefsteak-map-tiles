@@ -5,7 +5,7 @@ window.addEventListener('load', function () {
     container: 'map',
     style: '/style/heirloom-demo-style.json',
     hash: 'map',
-    minZoom: 5,
+    minZoom: 0,
     center: [0, 0],
     zoom: 5
   });
