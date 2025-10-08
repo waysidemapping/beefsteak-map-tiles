@@ -1,10 +1,10 @@
-# Rustic Map Tiles Schema
+# Heirloom map tile schema
 
 This schema is in active development and is not yet versioned. Users should expect that changes may occur at any time without notice.
 
 ## Layers
 
-Rustic tiles have just three layers, one for each geometry type. Note that these do not correspond exactly to OSM entity types, and that the same feature may appear in multiple layers. Actual inclusion is dependent on tagging and zoom level.
+Heirloom tiles have just three layers, one for each geometry type. Note that these do not correspond exactly to OSM entity types, and that the same feature may appear in multiple layers. Actual inclusion is dependent on tagging and zoom level.
 
 ### `area`
 
@@ -20,9 +20,9 @@ Features in the `point` layer correspond to tagged nodes, or the centerpoints of
 
 ## Top-level tags
 
-OpenStreetMap has the concept of [top-level tags](https://wiki.openstreetmap.org/wiki/Top-level_tag) which define the main type of each feature. Rustic tiles include only features tagged with a supported top-level tag. Each tag has specific geometry expectations.
+OpenStreetMap has the concept of [top-level tags](https://wiki.openstreetmap.org/wiki/Top-level_tag) which define the main type of each feature. Heirloom tiles include only features tagged with a supported top-level tag. Each tag has specific geometry expectations.
 
-For performance and consistency, features with the top-level tag values `no` and `unknown` (e.g. `building=no` or `shop=unknown`) are NOT ignored. These are sometimes called [troll tags](https://wiki.openstreetmap.org/wiki/Trolltag) in OSM since they may be technically accurate but often break apps. As such, these tags can be deleted from OSM if they cause issues in Rustic tiles.
+For performance and consistency, features with the top-level tag values `no` and `unknown` (e.g. `building=no` or `shop=unknown`) are NOT ignored. These are sometimes called [troll tags](https://wiki.openstreetmap.org/wiki/Trolltag) in OSM since they may be technically accurate but often break apps. As such, these tags can be deleted from OSM if they cause issues in Heirloom tiles.
 
 Similarly, certain top-level keys such as `emergency` and `indoor` are used as attribute tags by some mappers, like `emergency=designated`. Again, for performance and consistency, features with these tag values are NOT ignored and may cause unexpected behavior.
 

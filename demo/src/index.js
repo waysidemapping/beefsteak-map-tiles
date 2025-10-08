@@ -3,7 +3,7 @@ var map;
 window.addEventListener('load', function () {
   map = new maplibregl.Map({
     container: 'map',
-    style: '/style/rustic-demo-style.json',
+    style: '/style/heirloom-demo-style.json',
     hash: 'map',
     minZoom: 5,
     center: [0, 0],

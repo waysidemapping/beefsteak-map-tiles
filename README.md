@@ -54,13 +54,13 @@ For convenience, a Dockerfile is provided that will run the server in an Ubuntu 
 To build the reusable Docker image, run:
 
 ```
-docker build -t rustic-tileserver:latest -f Dockerfile .
+docker build -t heirloom-tileserver:latest -f Dockerfile .
 ```
 
 To create and start a container using the Docker image, run: 
 
 ```
-docker run --name rustic-dev-container -p 3000:3000 --mount type=bind,src=./server,dst=/usr/src/app --mount type=bind,src=./tmp,dst=/var/tmp/app rustic-tileserver:latest
+docker run --name heirloom-dev-container -p 3000:3000 --mount type=bind,src=./server,dst=/usr/src/app --mount type=bind,src=./tmp,dst=/var/tmp/app heirloom-tileserver:latest
 ```
 
 The first `--mount` is required to copy over the `/server` directory to the container. Any changes to these files will be immediately synced between the host and the container. The second `--mount` is optional but is convenient for managing intermediate files (which may be quite large) on the host system.
@@ -68,17 +68,17 @@ The first `--mount` is required to copy over the `/server` directory to the cont
 To restart the container once it's stopped, run:
 
 ```
-docker start rustic-dev-container -i
+docker start heirloom-dev-container -i
 ```
 
 To apply changes to `functions.sql` while the container (and Postgres) are running, run:
 
 ```
-docker exec -i rustic-dev-container /usr/src/app/update_sql_functions.sh
+docker exec -i heirloom-dev-container /usr/src/app/update_sql_functions.sh
 ```
 
 To run a custom SQL query in the database (useful for debugging), run:
 
 ```
-docker exec -i rustic-dev-container sudo -u postgres psql -U postgres -d osm -c "yourquery"
+docker exec -i heirloom-dev-container sudo -u postgres psql -U postgres -d osm -c "yourquery"
 ```

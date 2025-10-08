@@ -804,7 +804,7 @@ CREATE OR REPLACE FUNCTION function_get_point_layer_for_tile(z integer, env_geom
     SELECT ST_AsMVT(tile, 'point', 4096, 'geom') AS mvt FROM mvt_point_features AS tile
 $point_function_body$;
 
-CREATE OR REPLACE FUNCTION function_get_rustic_tile(z integer, x integer, y integer)
+CREATE OR REPLACE FUNCTION function_get_heirloom_tile(z integer, x integer, y integer)
   RETURNS bytea
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $function_body$
@@ -822,7 +822,7 @@ CREATE OR REPLACE FUNCTION function_get_rustic_tile(z integer, x integer, y inte
     SELECT string_agg(mvt, ''::bytea) FROM tiles;
 $function_body$;
 
-COMMENT ON FUNCTION function_get_rustic_tile IS
+COMMENT ON FUNCTION function_get_heirloom_tile IS
 $tilejson$
 {
   "description => Server-farm-to-table OpenStreetMap tiles",
