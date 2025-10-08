@@ -2,7 +2,7 @@
 
 _Server-farm-to-table OpenStreetMap tiles_
 
-Heirloom is a special cultivar of [OpenStreetMap](https://www.openstreetmap.org/about/)-based vector tiles developed for artisan mapmakers. While mass-market solutions like [OpenMapTiles](https://openmaptiles.org/) are great for building simple basemaps, they trade off data fidelity for ease-of-use. Heirloom instead contains the full palette of flavors found in OSM data—the sour along with the sweet—though they're still pruned for size. Heirloom even supports live updates from OSM to ensure the freshest maps possible. You can get it more easily from a can, but these are map tiles for people who make their own pasta sauce (and love to throw in a parmesan rind).
+Heirloom is a special cultivar of [OpenStreetMap](https://www.openstreetmap.org/about/)-based vector tiles developed for artisan mapmakers. While mass-market solutions like [OpenMapTiles](https://openmaptiles.org/) are great for building simple basemaps, they trade off data fidelity for ease-of-use. Heirloom instead contains the full palette of flavors found in OSM data. Heirloom even supports live updates from OSM to ensure the freshest maps possible. Sure you could just pop open a can, but these are map tiles for people who prefer to make their own pasta sauce (and love to throw in a parmesan rind).
 
 ### 🍝 Features
 
@@ -28,24 +28,92 @@ Heirloom is a special cultivar of [OpenStreetMap](https://www.openstreetmap.org/
 
 Heirloom map tiles aren't for everyone. If you don't need Heirloom's power and complexity, consider working with something simpler.
 
-If you don't need minutely updates, high-zoom tiles, or a hot-swappable schema, then you don't need to run a traditional tileserver. If you still want to work with raw OSM tags, I recommend checking out [Sourdough](https://sourdough.osm.fyi/) by [@jake-low](https://github.com/jake-low/). Heirloom and Sourdough are cousins of sorts.
+- [Sourdough](https://sourdough.osm.fyi/): If you don't need minutely updates, high-zoom tiles, or a hot-swappable schema, then you don't need to run a traditional tileserver. If you still want to work with raw OSM tags, definitely check out Sourdough by [@jake-low](https://github.com/jake-low/). Heirloom and Sourdough are cousins of sorts.
+- [OpenMapTiles](https://openmaptiles.org/): If you just want an out-of-the-box basemap solution with broad support, you probably want OpenMapTiles. There are a few free tileservers providing tiles in this format, mainly the [OSM US Tileservice](https://tiles.openstreetmap.us/) and [OpenFreeMap](https://openfreemap.org/).
+- [Shortbread](https://shortbread-tiles.org/): If you're looking for a lean, general-purpose tile schema supported on openstreetmap.org, try Shortbread.
 
-If you just want an out-of-the-box solution with broad support you probably want [OpenMapTiles](https://openmaptiles.org/). There are a few free tileservers providing tiles in this format, mainly the [OSM US Tileservice](https://tiles.openstreetmap.us/) and [OpenFreeMap](https://openfreemap.org/).
+## Deploying an Heirloom tileserver
 
-If you're looking for a lean, general-purpose tile schema supported on openstreetmap.org, see [Shortbread](https://shortbread-tiles.org/).
 
-## Development
+
+## Using Heirloom tiles
+
+### Schema
+
+The Heirloom tile schema is tuned to be as close to OpenStreetMap as possible while maintaining reasonable tile sizes and render speeds. The basics are very simple:
+
+- There are only three layers: `point`, `line`, and `area`. Features may appear in multiple layers.
+- All features with specific top-level OSM keys are included (no matter what values).
+- All tags for certain [keys](server/schema_data/attribute_keys.txt) and [key prefixes](server/schema_data/attribute_key_prefixes.txt) are included as attributes (no matter what values).
+- Features may be filtered or aggregated depending on zoom level.
+- Coastlines and boundaries get special treatment.
+
+For detailed info, see [SCHEMA.md](SCHEMA.md).
+
+### MapLibre styling
+
+Heirloom tiles are intended to be displayed with [MapLibre](https://maplibre.org) and are well supported by the [style spec](https://maplibre.org/maplibre-style-spec/).
+
+To get started, add your Heirloom server endpoint as a vector source in your map style:
+
+```
+"sources": {
+    "heirloom": {
+        "type": "vector",
+        "url": "https://heirloom.example.com"
+    }
+}
+```
+
+To add a display layer, select the source layer based on geometry, and then filter using OpenStreetMap tags:
+
+```
+"layers": [
+    {
+        "id": "waterway",
+        "source": "heirloom",
+        "source-layer": "line",
+        "type": "line",
+        "filter": ["has", "waterway"],
+        "paint": {
+            "line-color": "blue"
+        }
+    }
+]
+```
+
+Note that any quirks in OSM tagging will be reflected in the tiles. For example, the above code block will color dams blue since they are tagged under `waterway`. To account for this, change the filter to exclude them:
+
+```
+"filter": [
+    "all",
+    ["has", "waterway"],
+    ["!", ["in", ["get", "waterway"], ["literal", ["dam", "weir"]]]]
+]
+```
+
+Alternatively, you can style by attribute within the property itself: 
+
+```
+"line-color": [
+    "case",
+    ["in", ["get", "waterway"], ["literal", ["dam", "weir"]]], "grey",
+    "blue"
+]
+```
+
+Using these techniques, you can create expressive, detailed maps with the many OSM tags included in Heirloom tiles.
+
+## Developing Heirloom
 
 ### Stack
+
+Heirloom strives to have minimal dependencies. It is built atop the following open source projects:
 
 - [Martin](https://github.com/maplibre/martin): vector maptile server
 - [osm2pgsql](https://github.com/osm2pgsql-dev/osm2pgsql): OSM data importer for Postgres
 - [PostGIS](https://postgis.net): geospatial extension for Postgres
 - [OpenStreetMap](https://www.openstreetmap.org/about/) (OSM): free, collaborative, global geospatial database 
-
-### Schema
-
-Heirloom uses a custom tile schema to achieve its design goals. See [SCHEMA.md](SCHEMA.md) for detailed info.
 
 ### Running locally
 
@@ -82,3 +150,8 @@ To run a custom SQL query in the database (useful for debugging), run:
 ```
 docker exec -i heirloom-dev-container sudo -u postgres psql -U postgres -d osm -c "yourquery"
 ```
+## FAQ
+
+### What's with the name?
+
+[Heirlooms](https://en.wikipedia.org/wiki/Heirloom_plant) (pronounced *AIR-looms* in the US) are rare varieties of fruits and vegetables that are typically homegrown rather than produced for agribusiness. It's supposed to sound earthy and local and hopefully not pretentious.
