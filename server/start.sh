@@ -1,7 +1,6 @@
 #!/bin/bash
 
 set -x # echo on
-set -e # Exit if any command fails
 
 ARCHITECTURE=$(uname -m)
 SCRATCH_DIR="/var/tmp/app"
