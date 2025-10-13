@@ -9,7 +9,8 @@ PLANET_FILE="$SCRATCH_DIR/planet-latest.osm.pbf"
 PLANET_URL="https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf"
 # "https://planet.openstreetmap.org/pbf/planet-latest.osm.pbf"
 
-PG_VERSION="17"
+PG_VERSION="18"
+POSTGIS_MAJOR_VERSION="3"
 DB_NAME="osm"
 DB_USER="osmuser"
 TABLE_PREFIX="planet_osm"
@@ -129,14 +130,23 @@ else
     echo "PostgreSQL is not installed. Proceeding with installation..."
 
     sudo apt update
-
     sudo apt install -y postgresql-common
-    yes "" | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
 
-    sudo apt update
+    # Add PGDG repo
+    if ! grep -q apt.postgresql.org /etc/apt/sources.list /etc/apt/sources.list.d/*; then
+        echo "Adding PostgreSQL APT repo..."
+        sudo apt install -y wget gnupg lsb-release
+        wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+        echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+        sudo apt update
+    fi
 
-    echo "Installing PostgreSQL $PG_VERSION and PostGIS..."
-    sudo apt install -y postgresql-$PG_VERSION postgresql-contrib-$PG_VERSION postgis
+    # Explicitly install only the version we want
+    sudo apt install -y \
+        postgresql-$PG_VERSION \
+        postgresql-contrib-$PG_VERSION \
+        postgresql-$PG_VERSION-postgis-$POSTGIS_MAJOR_VERSION \
+        postgresql-$PG_VERSION-postgis-$POSTGIS_MAJOR_VERSION-scripts
 
     # Path to postgresql.conf based on version
     PG_CONF_PATH="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
