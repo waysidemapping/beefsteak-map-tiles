@@ -1,67 +1,3 @@
-CREATE OR REPLACE FUNCTION function_get_relation_features(z integer, env_geom geometry, min_area real)
-  RETURNS TABLE(_id int8, _tags jsonb)
-  LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
-  AS $$
-  BEGIN
-  RETURN QUERY EXECUTE format($fmt$
-    SELECT id, tags::jsonb
-      FROM non_area_relation r
-      WHERE r.geom && %2$L
-        AND (
-          (
-            r.tags @> 'type => route'
-            AND r.bbox_diagonal_length > %3$L * 50.0
-          ) OR (
-            r.tags @> 'type => waterway'
-            AND r.bbox_diagonal_length > %3$L * 250.0
-          )
-        )
-    UNION ALL
-      SELECT id, tags::jsonb
-      FROM area_relation r
-      WHERE r.geom && %2$L
-        AND r.tags @> 'boundary => administrative'
-        AND (
-          r.tags @> 'admin_level => 1'
-          OR r.tags @> 'admin_level => 2'
-          OR r.tags @> 'admin_level => 3'
-          OR r.tags @> 'admin_level => 4'
-          OR r.tags @> 'admin_level => 5'
-          OR (
-            %1$L >= 6 AND r.tags @> 'admin_level => 6'
-          )
-        )
-  ;
-  $fmt$, z, env_geom, min_area);
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION function_get_relation_layer_for_tile(z integer, env_geom geometry)
-  RETURNS bytea
-  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
-  AS $relation_function_body$
-  WITH
-    relation_features AS (
-      SELECT _id AS id, _tags AS tags FROM function_get_relation_features(z, env_geom, sqrt(2.0 * (ST_Area(env_geom) * 0.000000075))::real)
-    ),
-    tagged_relation_features AS (
-      SELECT
-        id,
-        jsonb_object_agg(key, value) FILTER (WHERE key IN ({{RELATION_JSONB_KEYS}})) AS tags
-      FROM relation_features
-      LEFT JOIN LATERAL jsonb_each(tags) AS t(key, value) ON true
-      GROUP BY id
-    ),
-    mvt_relation_features AS (
-      SELECT
-        id * 10 + 3 AS feature_id,
-        tags,
-        env_geom AS geom
-      FROM tagged_relation_features
-    )
-    SELECT ST_AsMVT(tile, 'relation', 4096, 'geom', 'feature_id') AS mvt FROM mvt_relation_features AS tile
-$relation_function_body$;
-
 CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geometry, min_area real, simplify_tolerance real)
   RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _area_3857 real, _osm_type text)
   LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
@@ -201,7 +137,7 @@ CREATE OR REPLACE FUNCTION function_get_area_layer_for_tile(z integer, env_geom 
 $area_function_body$;
 
 CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geometry, min_diagonal_length real, simplify_tolerance real)
-  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry)
+  RETURNS TABLE(id int8, tags jsonb, geom geometry, relation_ids bigint[])
   LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
     BEGIN
@@ -220,7 +156,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
             --   )
             (slice(w.tags, ARRAY[{{LOW_ZOOM_LINE_JSONB_KEYS}}])::jsonb)
               || COALESCE(jsonb_object_agg('m.' || rw.relation_id::text, rw.member_role) FILTER (WHERE r.id IS NOT NULL), '{}'::jsonb) AS tags,
-            (ARRAY_AGG(w.geom))[1] AS geom
+            (ARRAY_AGG(w.geom))[1] AS geom,
+            ARRAY_AGG(r.id) AS relation_ids
           FROM way_no_explicit_area w
           LEFT JOIN way_relation_member rw ON w.id = rw.member_id
           LEFT JOIN non_area_relation r ON
@@ -253,7 +190,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
             w.id,
             slice(w.tags, ARRAY['waterway'])::jsonb
               || jsonb_object_agg('m.' || rw.relation_id::text, rw.member_role) AS tags,
-            (ARRAY_AGG(w.geom))[1] AS geom
+            (ARRAY_AGG(w.geom))[1] AS geom,
+            ARRAY_AGG(r.id) AS relation_ids
           FROM way_no_explicit_area w
           JOIN way_relation_member rw ON w.id = rw.member_id
           JOIN non_area_relation r ON rw.relation_id = r.id
@@ -271,7 +209,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           SELECT
             w.id,
             jsonb_object_agg('m.' || rw.relation_id::text, rw.member_role) AS tags,
-            (ARRAY_AGG(w.geom))[1] AS geom
+            (ARRAY_AGG(w.geom))[1] AS geom,
+            ARRAY_AGG(r.id) AS relation_ids
           FROM way_no_explicit_area w
           JOIN way_relation_member rw ON w.id = rw.member_id
           JOIN non_area_relation r ON rw.relation_id = r.id
@@ -286,7 +225,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           SELECT w.id,
             slice(w.tags, ARRAY['name', 'maritime'])::jsonb
               || jsonb_object_agg('m.' || rw.relation_id::text, rw.member_role) AS tags,
-            (ARRAY_AGG(w.geom))[1] AS geom
+            (ARRAY_AGG(w.geom))[1] AS geom,
+            ARRAY_AGG(r.id) AS relation_ids
           FROM way w
           JOIN way_relation_member rw ON w.id = rw.member_id
           JOIN area_relation r ON rw.relation_id = r.id AND r.tags @> 'boundary => administrative'
@@ -304,26 +244,27 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           GROUP BY w.id
         ),
         grouped_by_tags AS (
-            SELECT tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %4$L, true) AS geom
+            SELECT tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %4$L, true) AS geom, MIN(relation_ids) AS relation_ids
             FROM ways
             GROUP BY tags
           UNION ALL
-            SELECT tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %4$L, true) AS geom
+            SELECT tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %4$L, true) AS geom, MIN(relation_ids) AS relation_ids
             FROM waterways
             GROUP BY tags
           UNION ALL
-            SELECT tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %4$L, true) AS geom
+            SELECT tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %4$L, true) AS geom, MIN(relation_ids) AS relation_ids
             FROM hiking_routes
             GROUP BY tags
           UNION ALL
-            SELECT tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %4$L, true) AS geom
+            SELECT tags, ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %4$L, true) AS geom, MIN(relation_ids) AS relation_ids
             FROM boundaries
             GROUP BY tags
         )
         SELECT
             NULL::int8 AS id,
             tags,
-            geom
+            geom,
+            relation_ids
           FROM grouped_by_tags
       ;
       $fmt$, z, env_geom, min_diagonal_length, simplify_tolerance);
@@ -424,7 +365,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       SELECT
         id,
         jsonb_object_agg(key, value) FILTER (WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}} OR key LIKE 'm.%%') AS tags,
-        geom
+        geom,
+        ARRAY[]::bigint[] AS relation_ids
       FROM all_lines
       LEFT JOIN LATERAL jsonb_each(tags) AS t(key, value) ON true
       GROUP BY id, geom
@@ -433,24 +375,6 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
   END IF;
   END;
 $$;
-
-CREATE OR REPLACE FUNCTION function_get_line_layer_for_tile(z integer, env_geom geometry)
-  RETURNS bytea
-  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
-  AS $line_function_body$
-  WITH
-    line_features AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom FROM function_get_line_features(z, env_geom, sqrt(2.0 * (ST_Area(env_geom) * 0.000000075))::real, (((ST_XMax(env_geom) - ST_XMin(env_geom)))/4096 * 2)::real)
-    ),
-    mvt_line_features AS (
-      SELECT
-        id * 10 + 2 AS feature_id,
-        tags,
-        ST_AsMVTGeom(geom, env_geom, 4096, 64, true) AS geom
-      FROM line_features
-    )
-    SELECT ST_AsMVT(tile, 'line', 4096, 'geom', 'feature_id') AS mvt FROM mvt_line_features AS tile
-$line_function_body$;
 
 CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geometry, min_area real, max_area real)
   RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _area_3857 real, _osm_type text)
@@ -598,12 +522,55 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile(z integer, x integer, y in
     envelope AS (
       SELECT ST_TileEnvelope(z, x, y) AS env_geom  
     ),
+    line_features AS (
+      SELECT id, tags, geom, relation_ids
+      FROM function_get_line_features(z, ST_TileEnvelope(z, x, y), sqrt(2.0 * (ST_Area(ST_TileEnvelope(z, x, y)) * 0.000000075))::real, (((ST_XMax(ST_TileEnvelope(z, x, y)) - ST_XMin(ST_TileEnvelope(z, x, y))))/4096 * 2)::real)
+    ),
+    mvt_line_features AS (
+      SELECT
+        id * 10 + 2 AS feature_id,
+        tags,
+        ST_AsMVTGeom(geom, ST_TileEnvelope(z, x, y), 4096, 64, true) AS geom
+      FROM line_features
+    ),
+    all_relation_ids AS (
+      SELECT unnest(relation_ids) AS relation_id
+      FROM line_features
+    ),
+    unique_relation_ids AS (
+      SELECT DISTINCT relation_id
+      FROM all_relation_ids
+    ),
+    relation_features AS (
+        SELECT r.id, r.tags::jsonb
+        FROM non_area_relation r
+        JOIN unique_relation_ids linked ON r.id = linked.relation_id
+      UNION ALL
+        SELECT r.id, r.tags::jsonb
+        FROM area_relation r
+        JOIN unique_relation_ids linked ON r.id = linked.relation_id
+    ),
+    tagged_relation_features AS (
+      SELECT
+        id,
+        jsonb_object_agg(key, value) FILTER (WHERE key IN ({{RELATION_JSONB_KEYS}})) AS tags
+      FROM relation_features
+      LEFT JOIN LATERAL jsonb_each(tags) AS t(key, value) ON true
+      GROUP BY id
+    ),
+    mvt_relation_features AS (
+      SELECT
+        id * 10 + 3 AS feature_id,
+        tags,
+        ST_TileEnvelope(z, x, y) AS geom
+      FROM tagged_relation_features
+    ),
     tiles AS (
-        SELECT function_get_relation_layer_for_tile(z, env_geom) AS mvt FROM envelope
+        SELECT ST_AsMVT(mvt_relation_features, 'relation', 4096, 'geom', 'feature_id') AS mvt FROM mvt_relation_features
       UNION ALL
         SELECT function_get_area_layer_for_tile(z, env_geom) AS mvt FROM envelope
       UNION ALL
-        SELECT function_get_line_layer_for_tile(z, env_geom) AS mvt FROM envelope
+        SELECT ST_AsMVT(mvt_line_features, 'line', 4096, 'geom', 'feature_id') AS mvt FROM mvt_line_features
       UNION ALL
         SELECT function_get_point_layer_for_tile(z, env_geom) AS mvt FROM envelope
     )
