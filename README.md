@@ -150,6 +150,11 @@ To run a custom SQL query in the database (useful for debugging), run:
 ```
 docker exec -i heirloom-dev-container sudo -u postgres psql -U postgres -d osm -c "yourquery"
 ```
+
+### SQL guidelines
+
+Minutely tiles can't be cached for very long, so lightning-fast renders are critical. Heirloom has a highly optimized SQL query that goes without luxuries like recursion, `UNION`, `ST_SimplifyPreserveTopology`, and `ST_Union`.
+
 ## FAQ
 
 ### What's with the name?
