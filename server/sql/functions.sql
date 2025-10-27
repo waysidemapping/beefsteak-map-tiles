@@ -3,7 +3,7 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
   LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
   BEGIN
-  IF z < 10 THEN
+  IF z < 12 THEN
     RETURN QUERY
     WITH
     closed_ways AS (
@@ -30,24 +30,32 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
           AND NOT tags @> 'natural => coastline'
       UNION ALL
         SELECT * FROM areas
-        WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
-          AND is_explicit_area
-      UNION ALL
-        SELECT * FROM areas
         WHERE tags @> 'boundary => protected_area'
           OR tags @> 'boundary => aboriginal_lands'
+      UNION ALL
+        SELECT * FROM areas
+        WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
+          AND is_explicit_area
     ),
+    -- dedupe before simplifying/tag processing to reduce cost
     deduped_areas AS (
-      -- This will fail if a way and relation in the same tile have the same ID
-      SELECT DISTINCT ON (id) * FROM filtered_areas
+      SELECT DISTINCT ON (id, osm_type) * FROM filtered_areas
+    ),
+    -- filter tags to a small number of relevant keys
+    tagged_areas AS (
+      SELECT
+        slice(tags, ARRAY[{{LOW_ZOOM_AREA_KEY_LIST}}])::jsonb AS tags,
+        geom
+      FROM deduped_areas
     )
+    -- aggregate features with the same tags and simplify
     SELECT
       NULL::int8 AS id,
-      jsonb_build_object({{LOW_ZOOM_AREA_JSONB_KEY_MAPPINGS}}) AS tags,
+      tags,
       ST_Simplify(ST_Multi(ST_Collect(geom)), simplify_tolerance, true) AS geom,
       NULL::real AS area_3857,
       NULL::text AS osm_type
-    FROM deduped_areas
+    FROM tagged_areas
     GROUP BY tags
   ;
   ELSE
@@ -69,44 +77,46 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
         SELECT * FROM relation_areas
     ),
     filtered_areas AS (
-      SELECT * FROM areas
-      WHERE tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'information', 'landuse', 'leisure', 'man_made', 'military', 'office', 'public_transport', 'shop', 'tourism']
-    UNION ALL
-      SELECT * FROM areas
-      WHERE tags ? 'natural'
-        AND NOT tags @> 'natural => coastline'
-    UNION ALL
-      SELECT * FROM areas
-      WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
-        AND is_explicit_area
-    UNION ALL
-      SELECT * FROM areas
-      WHERE tags ?| ARRAY['area:highway', 'building:part', 'indoor', 'playground']
-        AND z >= 18
-    UNION ALL
-      SELECT * FROM areas
-      WHERE tags @> 'boundary => protected_area'
-        OR tags @> 'boundary => aboriginal_lands'
-    UNION ALL
+        SELECT * FROM areas
+        WHERE tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'information', 'landuse', 'leisure', 'man_made', 'military', 'office', 'public_transport', 'shop', 'tourism']
+      UNION ALL
+        SELECT * FROM areas
+        WHERE tags ? 'natural'
+          -- coastline areas are handled separately
+          AND NOT tags @> 'natural => coastline'
+      UNION ALL
+        SELECT * FROM areas
+        -- only certain boundaries are relevant for rendering as areas
+        WHERE tags @> 'boundary => protected_area'
+          OR tags @> 'boundary => aboriginal_lands'
+      UNION ALL
         SELECT * FROM areas
         WHERE tags ? 'building'
-          -- only show really big buildings at low zooms
-          AND (z >= 14 OR area_3857 > min_area::real * 50)
+          AND z >= 14
+      UNION ALL
+        SELECT * FROM areas
+        WHERE tags ?| ARRAY['area:highway', 'building:part', 'indoor', 'playground']
+          AND z >= 18
+      UNION ALL
+        SELECT * FROM areas
+        WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
+          AND is_explicit_area  
     ),
-    simplifed_areas AS (
-      SELECT id, tags::jsonb, ST_Simplify(geom, simplify_tolerance, true) AS geom, area_3857, osm_type FROM filtered_areas
+    -- dedupe before simplifying/tag processing to reduce cost
+    deduped_areas AS (
+      SELECT DISTINCT ON (id, osm_type) * FROM filtered_areas
     )
     SELECT
       id,
       (
         SELECT jsonb_object_agg(key, value)
-        FROM jsonb_each(tags)
-        WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}} OR key LIKE 'm.%%'
+        FROM each(tags)
+        WHERE key IN ({{KEY_LIST}}) {{KEY_PREFIX_LIKE_STATEMENTS}}
       ) AS tags,
-      geom,
+      ST_Simplify(geom, simplify_tolerance, true) AS geom,
       area_3857,
       osm_type
-    FROM simplifed_areas
+    FROM deduped_areas
   ;
 END IF;
 END;
@@ -187,7 +197,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           FROM admin_boundaries
       ),
       collapsed AS (
-        SELECT slice(ANY_VALUE(tags), ARRAY[{{LOW_ZOOM_LINE_JSONB_KEYS}}])::jsonb
+        SELECT slice(ANY_VALUE(tags), ARRAY[{{LOW_ZOOM_LINE_KEY_LIST}}])::jsonb
             || COALESCE(jsonb_object_agg('m.' || relation_id::text, member_role) FILTER (WHERE relation_id IS NOT NULL), '{}'::jsonb) AS tags,
           ANY_VALUE(geom) AS geom,
           ARRAY_AGG(relation_id) AS relation_ids
@@ -351,7 +361,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         (
           SELECT jsonb_object_agg(key, value)
           FROM jsonb_each(tags)
-          WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}} OR key LIKE 'm.%'
+          WHERE key IN ({{KEY_LIST}}) {{KEY_PREFIX_LIKE_STATEMENTS}} OR key LIKE 'm.%'
         ) AS tags,
         geom,
         relation_ids
@@ -469,7 +479,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       (
         SELECT jsonb_object_agg(key, value)
         FROM jsonb_each(tags)
-        WHERE key IN ({{JSONB_KEYS}}) {{JSONB_PREFIXES}} OR key LIKE 'm.%%'
+        WHERE key IN ({{KEY_LIST}}) {{KEY_PREFIX_LIKE_STATEMENTS}}
       ) AS tags,
       geom,
       area_3857,
@@ -544,7 +554,7 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
         (
           SELECT jsonb_object_agg(key, value)
           FROM jsonb_each(tags)
-          WHERE key IN ({{RELATION_JSONB_KEYS}}) {{RELATION_JSONB_PREFIXES}}
+          WHERE key IN ({{RELATION_KEY_LIST}}) {{RELATION_KEY_PREFIX_LIKE_STATEMENTS}}
         ) AS tags
       FROM relation_features
     ),
