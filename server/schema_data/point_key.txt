@@ -237,7 +237,6 @@ tram
 trapping
 trolleybus
 tunnel
-type
 unisex
 usage
 utility

@@ -199,7 +199,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           FROM admin_boundaries
       ),
       collapsed AS (
-        SELECT slice(ANY_VALUE(tags), ARRAY[{{LOW_ZOOM_LINE_KEY_LIST}}])::jsonb
+        SELECT
+          slice(ANY_VALUE(tags), ARRAY[{{LOW_ZOOM_LINE_KEY_LIST}}])::jsonb
             || COALESCE(jsonb_object_agg('m.' || relation_id::text, member_role) FILTER (WHERE relation_id IS NOT NULL), '{}'::jsonb) AS tags,
           ANY_VALUE(geom) AS geom,
           ARRAY_AGG(relation_id) AS relation_ids
@@ -262,7 +263,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           tags ? 'railway'
           AND NOT tags ? 'service'
         ) OR (
-          tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'power', 'railway', 'route', 'telecom', 'waterway']
+          tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'power', 'railway', 'route', 'telecom']
           AND z >= 13
         ) OR (
           tags ?| ARRAY['man_made', 'natural']
@@ -370,7 +371,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
 $$;
 
 CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geometry, min_area real, max_area real, min_rel_extent real, max_rel_extent real)
-  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _area_3857 real, _osm_type text)
+  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _area_3857 real, _osm_type text, _relation_ids int8[])
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
     WITH
@@ -442,12 +443,14 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       )
     ),
     large_points AS (
-        SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type FROM way_no_explicit_line
+        SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
+        FROM way_no_explicit_line
         WHERE label_point && env_geom
           AND area_3857 > min_area
           AND area_3857 < max_area
       UNION ALL
-        SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type FROM area_relation
+        SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
+        FROM area_relation
         WHERE label_point && env_geom
           AND area_3857 > min_area
           AND area_3857 < max_area
@@ -465,20 +468,30 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       )
     ),
     route_centerpoints AS (
-      SELECT id, tags, bbox_centerpoint_on_surface AS geom, NULL::real AS area_3857, 'r' AS osm_type FROM non_area_relation
+      SELECT
+        id,
+        -- don't include tags since we're going to infill them on the client 
+        '{}'::jsonb AS tags,
+        bbox_centerpoint_on_surface AS geom,
+        NULL::real AS area_3857,
+        'r' AS osm_type,
+        ARRAY[id] AS relation_ids
+      FROM non_area_relation
       WHERE bbox_centerpoint_on_surface && env_geom
-        AND tags ? 'route'
-        -- scale area by 4 since we want to be a little more selective about size
+        AND (
+          (tags @> 'type => route' AND tags ? 'route')
+          OR tags @> 'type => waterway'
+        )
         AND bbox_diagonal_length > min_rel_extent
         AND bbox_diagonal_length < max_rel_extent
         AND z >= 4
     ),
     all_points AS (
-        SELECT id, tags::jsonb, geom, area_3857, osm_type FROM filtered_small_points
+        SELECT id, tags::jsonb, geom, area_3857, osm_type, NULL::int8[] AS relation_ids FROM filtered_small_points
       UNION ALL
-        SELECT id, tags::jsonb, geom, area_3857, osm_type FROM filtered_large_points
+        SELECT id, tags::jsonb, geom, area_3857, osm_type, NULL::int8[] AS relation_ids FROM filtered_large_points
       UNION ALL
-        SELECT id, tags::jsonb, geom, area_3857, osm_type FROM route_centerpoints
+        SELECT id, tags::jsonb, geom, area_3857, osm_type, relation_ids FROM route_centerpoints
     )
     SELECT
       id,
@@ -489,7 +502,8 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       ) AS tags,
       geom,
       area_3857,
-      osm_type
+      osm_type,
+      relation_ids
     FROM all_points
     ;
 $$;
@@ -500,12 +514,20 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
   AS $function_body$
   WITH
     area_features_without_ocean AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, power(min_extent * 4, 2)::real, (min_extent * 0.75)::real)
+      SELECT
+        _id AS id,
+        _tags AS tags,
+        _geom AS geom,
+        _area_3857 AS area_3857,
+        _osm_type AS osm_type
+      FROM function_get_area_features(z, env_geom, power(min_extent * 4, 2)::real, (min_extent * 0.75)::real)
     ),
     area_features AS (
-        SELECT id, tags, geom, area_3857, osm_type FROM area_features_without_ocean
+        SELECT id, tags, geom, area_3857, osm_type
+        FROM area_features_without_ocean
       UNION ALL
-        SELECT NULL AS id, '{"natural": "coastline"}'::jsonb AS tags, geom, NULL AS area_3857, NULL AS osm_type FROM function_get_ocean_for_tile(env_geom)
+        SELECT NULL AS id, '{"natural": "coastline"}'::jsonb AS tags, geom, NULL AS area_3857, NULL AS osm_type
+        FROM function_get_ocean_for_tile(env_geom)
     ),
     mvt_area_features AS (
       SELECT
@@ -516,7 +538,11 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
       FROM area_features
     ),
     line_features AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom, _relation_ids AS relation_ids
+      SELECT
+        _id AS id,
+        _tags AS tags,
+        _geom AS geom,
+        _relation_ids AS relation_ids
       FROM function_get_line_features(z, env_geom, min_extent, (min_extent * 192)::real, (min_extent * 0.75)::real)
     ),
     mvt_line_features AS (
@@ -527,7 +553,14 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
       FROM line_features
     ),
     point_features AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_point_features(z, env_geom, power(min_extent * 32, 2)::real, power(min_extent * 4096, 2)::real, (min_extent * 192)::real, (min_extent * 192 * 16)::real)
+      SELECT
+        _id AS id,
+        _tags AS tags,
+        _geom AS geom,
+        _area_3857 AS area_3857,
+        _osm_type AS osm_type,
+        _relation_ids AS relation_ids
+      FROM function_get_point_features(z, env_geom, power(min_extent * 32, 2)::real, power(min_extent * 4096, 2)::real, (min_extent * 192)::real, (min_extent * 192 * 16)::real)
     ),
     mvt_point_features AS (
       SELECT
@@ -538,8 +571,13 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
       FROM point_features
     ),
     all_relation_ids AS (
-      SELECT unnest(relation_ids) AS relation_id
-      FROM line_features
+        SELECT unnest(relation_ids) AS relation_id
+        FROM line_features
+        WHERE relation_ids IS NOT NULL
+      UNION ALL
+        SELECT unnest(relation_ids) AS relation_id
+        FROM point_features
+        WHERE relation_ids IS NOT NULL
     ),
     unique_relation_ids AS (
       SELECT DISTINCT relation_id

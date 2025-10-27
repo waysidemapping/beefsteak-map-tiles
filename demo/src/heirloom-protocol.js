@@ -27,28 +27,45 @@ export async function heirloomProtocolFunction(request) {
             ...layer,
             feature: (index) => {
               const feature = layer.feature(index);
-              const linkedRelations = Object.keys(feature.properties)
-                .filter(key => key.startsWith('m.'))
-                .map(key => parseInt(key.substring(2)))
-                .sort((a, b) => a - b)
-                .map(id => relationsById[id])
-                .filter(Boolean);
 
-              if (linkedRelations.length) {
-                feature.properties = {
-                  ...feature.properties,
-                  ...Object.fromEntries(
-                    Object.entries(
-                      allRelationKeys.reduce((acc, key) => {
-                        return {...acc, ['r.' + key]: '┃' + linkedRelations.map(rel => rel.properties[key]).join('┃') + '┃'};
-                      }, {})
+              if (feature.id % 10 === 3 && Object.keys(feature.properties).length === 0) {
+                // for relations with no properties, attempt to populate with data from the relation layer
+
+                const id = Math.floor(feature.id * 0.1);
+                const relation = relationsById[id];
+
+                if (relation) {
+                  feature.properties = {
+                    ...feature.properties,
+                    ...relation.properties
+                  };
+                }
+
+              } else {
+                // otherwise, add relation tags based on relation properties given in the format `m.{relation_id}={member_role}`
+
+                const linkedRelations = Object.keys(feature.properties)
+                  .filter(key => key.startsWith('m.'))
+                  .map(key => parseInt(key.substring(2)))
+                  .sort((a, b) => a - b)
+                  .map(id => relationsById[id])
+                  .filter(Boolean);
+
+                if (linkedRelations.length) {
+                  feature.properties = {
+                    ...feature.properties,
+                    ...Object.fromEntries(
+                      Object.entries(
+                        allRelationKeys.reduce((acc, key) => {
+                          return {...acc, ['r.' + key]: '┃' + linkedRelations.map(rel => rel.properties[key]).join('┃') + '┃'};
+                        }, {})
+                      )
+                      // remove relation properties that don't have any values
+                      .filter(([_, v]) => v.length > linkedRelations.length + 1)
                     )
-                    // remove relation properties that don't have any values
-                    .filter(([_, v]) => v.length > linkedRelations.length + 1)
-                  )
-                };
+                  };
+                }
               }
-
               return feature;
             }
           }
