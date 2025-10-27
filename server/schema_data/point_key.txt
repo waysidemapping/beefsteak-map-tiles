@@ -158,7 +158,6 @@ network
 nudism
 office
 ohv
-oneway
 openfire
 operator
 order:strahler

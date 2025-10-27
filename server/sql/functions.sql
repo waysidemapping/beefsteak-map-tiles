@@ -27,9 +27,11 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
       UNION ALL
         SELECT * FROM areas
         WHERE tags ? 'natural'
+          -- coastline areas are handled separately
           AND NOT tags @> 'natural => coastline'
       UNION ALL
         SELECT * FROM areas
+        -- only certain boundaries are relevant for rendering as areas
         WHERE tags @> 'boundary => protected_area'
           OR tags @> 'boundary => aboriginal_lands'
       UNION ALL
@@ -122,7 +124,7 @@ END IF;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geometry, min_diagonal_length real, simplify_tolerance real)
+CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geometry, min_way_extent real, min_rel_extent real, simplify_tolerance real)
   RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _relation_ids int8[])
   LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
@@ -143,7 +145,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         WHERE w.geom && env_geom
           AND r.geom && env_geom
           AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.bbox_diagonal_length > min_diagonal_length * 192.0
+          AND r.bbox_diagonal_length > min_rel_extent
           AND r.tags @> 'type => route'
           AND r.tags ? 'route'
       ),
@@ -161,7 +163,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           AND r.geom && env_geom
           AND w.tags ? 'waterway'
           AND r.tags @> 'type => waterway'
-          AND r.bbox_diagonal_length > min_diagonal_length * 192.0
+          AND r.bbox_diagonal_length > min_rel_extent
       ),
       admin_boundaries AS (
         SELECT w.id,
@@ -226,7 +228,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         SELECT id, tags, geom, is_explicit_line
         FROM way_no_explicit_area
         WHERE geom && env_geom
-          AND bbox_diagonal_length > min_diagonal_length
+          AND bbox_diagonal_length > min_way_extent
       ),
       filtered_lines AS (
         SELECT id, tags, geom
@@ -242,13 +244,9 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           OR tags @> 'highway => secondary_link'
           OR tags @> 'highway => tertiary'
           OR tags @> 'highway => tertiary_link'
-        ) OR (
-            (
-              tags @> 'highway => residential'
-              OR tags @> 'highway => unclassified'
-              OR tags @> 'highway => pedestrian'
-            )
-            AND z >= 12
+          OR tags @> 'highway => residential'
+          OR tags @> 'highway => unclassified'
+          OR tags @> 'highway => pedestrian'
         ) OR (
           tags ? 'highway'
           AND NOT (tags @> 'highway => footway' AND tags ? 'footway')
@@ -296,7 +294,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         WHERE w.geom && env_geom
           AND r.geom && env_geom
           AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.bbox_diagonal_length > min_diagonal_length * 192.0
+          AND r.bbox_diagonal_length > min_rel_extent
           AND r.tags @> 'type => route'
           AND r.tags ? 'route'
       ),
@@ -314,7 +312,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           AND r.geom && env_geom
           AND w.tags ? 'waterway'
           AND r.tags @> 'type => waterway'
-          AND r.bbox_diagonal_length > min_diagonal_length * 192.0
+          AND r.bbox_diagonal_length > min_rel_extent
       ),
       admin_boundaries AS (
         SELECT w.id,
@@ -371,7 +369,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
   END;
 $$;
 
-CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geometry, min_area real, max_area real)
+CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geometry, min_area real, max_area real, min_rel_extent real, max_rel_extent real)
   RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _area_3857 real, _osm_type text)
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
@@ -428,7 +426,12 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
         )
         AND z >= 9
       ) OR (
-        tags ?| ARRAY['advertising', 'amenity', 'boundary', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'natural', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+        tags ?| ARRAY['advertising', 'amenity', 'boundary', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+        AND z >= 12
+        AND (tags ? 'name' OR tags ? 'wikidata' OR z >= 15)
+      ) OR (
+        tags ? 'natural'
+        AND NOT tags @> 'natural => coastline'
         AND z >= 12
         AND (tags ? 'name' OR tags ? 'wikidata' OR z >= 15)
       ) OR (
@@ -452,7 +455,10 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     filtered_large_points AS (
       SELECT * FROM large_points
       WHERE (
-        tags ?| ARRAY['advertising', 'amenity', 'boundary', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'natural', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+        tags ?| ARRAY['advertising', 'amenity', 'boundary', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+      ) OR (
+        tags ? 'natural'
+        AND NOT tags @> 'natural => coastline'
       ) OR (
         tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
         AND is_node_or_explicit_area
@@ -463,16 +469,16 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       WHERE bbox_centerpoint_on_surface && env_geom
         AND tags ? 'route'
         -- scale area by 4 since we want to be a little more selective about size
-        AND bbox_diagonal_length > sqrt(2.0 * min_area * 4)
-        AND bbox_diagonal_length < sqrt(2.0 * max_area * 4)
+        AND bbox_diagonal_length > min_rel_extent
+        AND bbox_diagonal_length < max_rel_extent
         AND z >= 4
     ),
     all_points AS (
-      SELECT id, tags::jsonb, geom, area_3857, osm_type FROM filtered_small_points
-    UNION ALL
-      SELECT id, tags::jsonb, geom, area_3857, osm_type FROM filtered_large_points
-    UNION ALL
-      SELECT id, tags::jsonb, geom, area_3857, osm_type FROM route_centerpoints
+        SELECT id, tags::jsonb, geom, area_3857, osm_type FROM filtered_small_points
+      UNION ALL
+        SELECT id, tags::jsonb, geom, area_3857, osm_type FROM filtered_large_points
+      UNION ALL
+        SELECT id, tags::jsonb, geom, area_3857, osm_type FROM route_centerpoints
     )
     SELECT
       id,
@@ -488,13 +494,13 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
     ;
 $$;
 
-CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x integer, y integer, env_geom geometry, env_area real, env_width real)
+CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x integer, y integer, env_geom geometry, min_extent real)
   RETURNS bytea
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $function_body$
   WITH
     area_features_without_ocean AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, (env_area * 0.00001)::real, (env_width / 4096.0 * 2)::real)
+      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, power(min_extent * 4, 2)::real, (min_extent * 0.75)::real)
     ),
     area_features AS (
         SELECT id, tags, geom, area_3857, osm_type FROM area_features_without_ocean
@@ -505,13 +511,13 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
       SELECT
         id * 10 + (CASE WHEN osm_type = 'w' THEN 2 WHEN osm_type = 'r' THEN 3 ELSE 0 END) AS feature_id,
         tags,
-        area_3857,
+        -- area_3857,
         ST_AsMVTGeom(geom, env_geom, 4096, 64, true) AS geom
       FROM area_features
     ),
     line_features AS (
       SELECT _id AS id, _tags AS tags, _geom AS geom, _relation_ids AS relation_ids
-      FROM function_get_line_features(z, env_geom, (env_width / 4096.0 * 4.0)::real, (env_width / 4096.0 * 2.0)::real)
+      FROM function_get_line_features(z, env_geom, min_extent, (min_extent * 192)::real, (min_extent * 0.75)::real)
     ),
     mvt_line_features AS (
       SELECT
@@ -521,13 +527,13 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
       FROM line_features
     ),
     point_features AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_point_features(z, env_geom, (env_area * 0.0005)::real, (env_area * 16)::real)
+      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_point_features(z, env_geom, power(min_extent * 32, 2)::real, power(min_extent * 4096, 2)::real, (min_extent * 192)::real, (min_extent * 192 * 16)::real)
     ),
     mvt_point_features AS (
       SELECT
         id * 10 + (CASE WHEN osm_type = 'n' THEN 1 WHEN osm_type = 'w' THEN 2 WHEN osm_type = 'r' THEN 3 ELSE 0 END) AS feature_id,
         tags,
-        area_3857,
+        -- area_3857,
         ST_AsMVTGeom(geom, env_geom, 4096, 64, true) AS geom
       FROM point_features
     ),
@@ -583,7 +589,7 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile(z integer, x integer, y in
   AS $function_body$
   -- planning optimization can change a lot based on parameter values so don't used cached plans
   SET LOCAL plan_cache_mode = force_custom_plan;
-  SELECT * FROM function_get_heirloom_tile_for_envelope(z, x, y, ST_TileEnvelope(z, x, y), ST_Area(ST_TileEnvelope(z, x, y))::real, (ST_XMax(ST_TileEnvelope(z, x, y)) - ST_XMin(ST_TileEnvelope(z, x, y)))::real);
+  SELECT * FROM function_get_heirloom_tile_for_envelope(z, x, y, ST_TileEnvelope(z, x, y), ((ST_XMax(ST_TileEnvelope(z, x, y)) - ST_XMin(ST_TileEnvelope(z, x, y))) / 1024.0)::real);
 $function_body$;
 
 COMMENT ON FUNCTION function_get_heirloom_tile IS
