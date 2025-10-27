@@ -113,11 +113,11 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geometry, min_diagonal_length real, simplify_tolerance real)
-  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _relation_ids bigint[])
+  RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _relation_ids int8[])
   LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
     BEGIN
-    IF z < 11 THEN
+    IF z < 12 THEN
       RETURN QUERY
       WITH
       routes AS (
@@ -133,7 +133,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
         WHERE w.geom && env_geom
           AND r.geom && env_geom
           AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.bbox_diagonal_length > min_diagonal_length * 200.0
+          AND r.bbox_diagonal_length > min_diagonal_length * 192.0
           AND r.tags @> 'type => route'
           AND r.tags ? 'route'
       ),
@@ -151,7 +151,7 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           AND r.geom && env_geom
           AND w.tags ? 'waterway'
           AND r.tags @> 'type => waterway'
-          AND r.bbox_diagonal_length > min_diagonal_length * 200.0
+          AND r.bbox_diagonal_length > min_diagonal_length * 192.0
       ),
       admin_boundaries AS (
         SELECT w.id,
@@ -213,12 +213,14 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       RETURN QUERY
       WITH
       ways_in_tile AS (
-        SELECT id, tags, geom, is_explicit_line, bbox_diagonal_length FROM way_no_explicit_area
+        SELECT id, tags, geom, is_explicit_line
+        FROM way_no_explicit_area
         WHERE geom && env_geom
           AND bbox_diagonal_length > min_diagonal_length
       ),
       filtered_lines AS (
-        SELECT id, tags, geom FROM ways_in_tile
+        SELECT id, tags, geom
+        FROM ways_in_tile
         WHERE (
           tags @> 'highway => motorway'
           OR tags @> 'highway => motorway_link'
@@ -230,11 +232,11 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           OR tags @> 'highway => secondary_link'
           OR tags @> 'highway => tertiary'
           OR tags @> 'highway => tertiary_link'
-          OR (tags ? 'highway' AND tags @> 'expressway => yes')
         ) OR (
             (
               tags @> 'highway => residential'
               OR tags @> 'highway => unclassified'
+              OR tags @> 'highway => pedestrian'
             )
             AND z >= 12
         ) OR (
@@ -248,82 +250,101 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
           tags ?| ARRAY['waterway']
         ) OR (
           tags @> 'route => ferry'
-            AND bbox_diagonal_length > min_diagonal_length * 50.0
         ) OR (
           tags ? 'railway'
           AND NOT tags ? 'service'
         ) OR (
           tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'power', 'railway', 'route', 'telecom', 'waterway']
-            AND z >= 13
+          AND z >= 13
         ) OR (
           tags ?| ARRAY['man_made', 'natural']
-            AND is_explicit_line
-            AND z >= 13
+          AND is_explicit_line
+          AND z >= 13
         ) OR (
           tags @> 'natural => coastline'
-            AND z >= 13
+          AND z >= 13
         ) OR (
           tags ?| ARRAY['golf']
-            AND is_explicit_line
-            AND z >= 15
+          AND is_explicit_line
+          AND z >= 15
         ) OR (
           tags ?| ARRAY['indoor']
-            AND is_explicit_line
-            AND z >= 18
+          AND is_explicit_line
+          AND z >= 18
         )
       ),
-      path_routes AS (
-        SELECT w.id,
+      routes AS (
+        SELECT
+          w.id,
           w.tags,
-          w.geom
+          w.geom,
+          rw.member_role,
+          rw.relation_id
         FROM way_no_explicit_area w
         JOIN way_relation_member rw ON w.id = rw.member_id
         JOIN non_area_relation r ON rw.relation_id = r.id
         WHERE w.geom && env_geom
-          AND w.tags ? 'highway'
+          AND r.geom && env_geom
+          AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
+          AND r.bbox_diagonal_length > min_diagonal_length * 192.0
           AND r.tags @> 'type => route'
-          AND r.tags @> 'route => hiking'
-          AND r.bbox_diagonal_length > min_diagonal_length * 250.0
-          -- all paths are shown by z15 anyway
-          AND z < 15
-        GROUP BY w.id
+          AND r.tags ? 'route'
+      ),
+      waterways AS (
+        SELECT
+          w.id,
+          w.tags,
+          w.geom,
+          rw.member_role,
+          rw.relation_id
+        FROM way_no_explicit_area w
+        JOIN way_relation_member rw ON w.id = rw.member_id
+        JOIN non_area_relation r ON rw.relation_id = r.id
+        WHERE w.geom && env_geom
+          AND r.geom && env_geom
+          AND w.tags ? 'waterway'
+          AND r.tags @> 'type => waterway'
+          AND r.bbox_diagonal_length > min_diagonal_length * 192.0
       ),
       admin_boundaries AS (
         SELECT w.id,
           w.tags,
-          w.geom
+          w.geom,
+          rw.member_role,
+          rw.relation_id
         FROM way w
         JOIN way_relation_member rw ON w.id = rw.member_id
-        JOIN area_relation r ON rw.relation_id = r.id AND r.tags @> 'boundary => administrative' AND r.tags ? 'admin_level'
+        JOIN area_relation r ON rw.relation_id = r.id
         WHERE w.geom && env_geom
-        GROUP BY w.id
+          AND r.geom && env_geom
+          AND r.tags @> 'boundary => administrative'
+          AND r.tags ? 'admin_level'
       ),
-      all_filtered_lines AS (
-          SELECT * FROM filtered_lines
+      combined_lines AS (
+          SELECT id, tags, geom, NULL::text AS member_role, NULL::int8 AS relation_id
+          FROM filtered_lines
         UNION ALL
-          SELECT * FROM path_routes
+          SELECT *
+          FROM routes
         UNION ALL
-          SELECT * FROM admin_boundaries
+          SELECT *
+          FROM waterways
+        UNION ALL
+          SELECT *
+          FROM admin_boundaries
       ),
-      filtered_lines_w_relations AS (
-        SELECT w.id,
-          ANY_VALUE(w.tags)::jsonb
-            || COALESCE(jsonb_object_agg('m.' || rw.relation_id::text, rw.member_role) FILTER (WHERE r.id IS NOT NULL), '{}'::jsonb) AS tags,
-          ANY_VALUE(w.geom) AS geom,
-          ARRAY_AGG(r.id) AS relation_ids
-        FROM all_filtered_lines w
-        LEFT JOIN way_relation_member rw ON w.id = rw.member_id
-        LEFT JOIN relation r ON rw.relation_id = r.id
-          AND (
-            r.tags @> 'boundary => administrative'
-            OR r.tags @> 'type => route'
-            OR r.tags @> 'type => waterway'
-          )
-        GROUP BY w.id
+      collapsed AS (
+        SELECT id,
+          ANY_VALUE(tags)::jsonb
+            || COALESCE(jsonb_object_agg('m.' || relation_id::text, member_role) FILTER (WHERE relation_id IS NOT NULL), '{}'::jsonb) AS tags,
+          ANY_VALUE(geom) AS geom,
+          ARRAY_AGG(relation_id) AS relation_ids
+        FROM combined_lines
+        GROUP BY id
       ),
       simplified_lines AS (
         SELECT id, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom, relation_ids
-        FROM filtered_lines_w_relations
+        FROM collapsed
       )
       SELECT
         id,
@@ -463,7 +484,7 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
   AS $function_body$
   WITH
     area_features_without_ocean AS (
-      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, (env_area * 0.00001)::real, (env_width/4096 * 2)::real)
+      SELECT _id AS id, _tags AS tags, _geom AS geom, _area_3857 AS area_3857, _osm_type AS osm_type FROM function_get_area_features(z, env_geom, (env_area * 0.00001)::real, (env_width / 4096.0 * 2)::real)
     ),
     area_features AS (
         SELECT id, tags, geom, area_3857, osm_type FROM area_features_without_ocean
@@ -480,7 +501,7 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
     ),
     line_features AS (
       SELECT _id AS id, _tags AS tags, _geom AS geom, _relation_ids AS relation_ids
-      FROM function_get_line_features(z, env_geom, sqrt(2.0 * (env_area * 0.000000075))::real, (env_width/4096 * 2)::real)
+      FROM function_get_line_features(z, env_geom, (env_width / 4096.0 * 4.0)::real, (env_width / 4096.0 * 2.0)::real)
     ),
     mvt_line_features AS (
       SELECT
