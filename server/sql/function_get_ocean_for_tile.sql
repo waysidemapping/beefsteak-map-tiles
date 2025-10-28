@@ -14,7 +14,7 @@ CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
         ((ST_XMax(%1$L::geometry) - ST_XMin(%1$L::geometry)))/4096 * 2 AS simplify_tolerance,
 
         -- A VERY skinny bounding box stretching from the bottom left corner of the envelope
-        -- to the interior of Antarctica (roughly -85° Lat)
+        -- to the interior of Antarctica (roughly -85° Lat), expected to be south of all valid coastline features
         ST_MakeEnvelope(ST_XMin(%1$L::geometry), -20000000, ST_XMin(%1$L::geometry) + 0.000000001, ST_YMin(%1$L::geometry), 3857) AS tile_to_antarctica_bbox,
 
         ST_XMax(%1$L::geometry) AS rightX,
@@ -130,65 +130,203 @@ CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
               WHEN endX = leftX THEN
                 CASE
                   WHEN endY < startY THEN
-                    ARRAY[endP, startP]
+                    --   ■             ■
+                    --                 
+                    --   S             
+                    --   ↑             
+                    --   E             
+                    --                 
+                    --   ■             ■
+                    ARRAY[endP, startP]                  
                   ELSE -- endY > startY
+                    --   ■ → → → → → → ■
+                    --   ↑             ↓
+                    --   E             ↓
+                    --                 ↓
+                    --   S             ↓
+                    --   ↑             ↓
+                    --   ■ ← ← ← ← ← ← ■
                     ARRAY[endP, topLeft, topRight, bottomRight, bottomLeft, startP]
                 END
               WHEN endX = rightX THEN
+                --   ■             ■
+                --                 
+                --   S             E
+                --   ↑             ↓
+                --   ↑             ↓
+                --   ■ ← ← ← ← ← ← ■
                 ARRAY[endP, bottomRight, bottomLeft, startP]
               WHEN endY = bottomY THEN
+                --   ■             ■
+                --                 
+                --   S             
+                --   ↑              
+                --   ↑              
+                --   ■ ← ← E       ■
                 ARRAY[endP, bottomLeft, startP]
               WHEN endY = topY THEN
+                --   ■       E → → ■
+                --                 ↓
+                --                 ↓
+                --                 ↓
+                --   S             ↓
+                --   ↑             ↓
+                --   ■ ← ← ← ← ← ← ■
                 ARRAY[endP, topRight, bottomRight, bottomLeft, startP]
               ELSE NULL
             END
           WHEN startX = rightX THEN
             CASE
               WHEN endX = leftX THEN
+                --   ■ → → → → → → ■
+                --   ↑             ↓
+                --   ↑             ↓
+                --   E             S
+                --                 
+                --                  
+                --   ■             ■
                 ARRAY[endP, topLeft, topRight, startP]
               WHEN endX = rightX THEN
                 CASE
                   WHEN endY < startY THEN
+                    --   ■ → → → → → → ■
+                    --   ↑             ↓
+                    --   ↑             S
+                    --   ↑              
+                    --   ↑             E
+                    --   ↑             ↓
+                    --   ■ ← ← ← ← ← ← ■
                     ARRAY[endP, bottomRight, bottomLeft, topLeft, topRight, startP]
                   ELSE -- endY > startY
+                    --   ■             ■
+                    --                 
+                    --                 E             
+                    --                 ↓             
+                    --                 S            
+                    --                 
+                    --   ■             ■
                     ARRAY[endP, startP]
                 END
               WHEN endY = bottomY THEN
+                --   ■ → → → → → → ■
+                --   ↑             ↓
+                --   ↑             ↓
+                --   ↑             S
+                --   ↑             
+                --   ↑              
+                --   ■ ← ← E       ■
                 ARRAY[endP, bottomLeft, topLeft, topRight, startP]
               WHEN endY = topY THEN
+                --   ■       E → → ■
+                --                 ↓
+                --                 ↓
+                --                 S
+                --                 
+                --                  
+                --   ■             ■
                 ARRAY[endP, topRight, startP]
               ELSE NULL
             END
           WHEN startY = bottomY THEN
             CASE
               WHEN endX = leftX THEN
+                --   ■ → → → → → → ■
+                --   ↑             ↓
+                --   ↑             ↓
+                --   E             ↓
+                --                 ↓
+                --                 ↓
+                --   ■       S ← ← ■
                 ARRAY[endP, topLeft, topRight, bottomRight, startP]
               WHEN endX = rightX THEN
+                --   ■             ■
+                --   
+                --    
+                --                 E
+                --                 ↓
+                --                 ↓
+                --   ■       S ← ← ■
                 ARRAY[endP, bottomRight, startP]
               WHEN endY = bottomY THEN
                 CASE
                   WHEN endX < startX THEN
+                    --   ■ → → → → → → ■
+                    --   ↑             ↓
+                    --   ↑             ↓
+                    --   ↑             ↓
+                    --   ↑             ↓
+                    --   ↑             ↓
+                    --   ■ ← E     S ← ■
                     ARRAY[endP, bottomLeft, topLeft, topRight, bottomRight, startP]
                   ELSE -- endX > startX
+                    --   ■             ■
+                    --                  
+                    --                  
+                    --                  
+                    --                 
+                    --                  
+                    --   ■   S ← ← E   ■
                     ARRAY[endP, startP]
                 END
               WHEN endY = topY THEN
+                --   ■       E → → ■
+                --                 ↓
+                --                 ↓
+                --                 ↓
+                --                 ↓
+                --                 ↓
+                --   ■       S ← ← ■
                 ARRAY[endP, topRight, bottomRight, startP]
               ELSE NULL
             END
           WHEN startY = topY THEN
             CASE
               WHEN endX = leftX THEN
+                --   ■ → → S       ■
+                --   ↑              
+                --   ↑              
+                --   E             
+                --   
+                --   
+                --   ■             ■
                 ARRAY[endP, topLeft, startP]
               WHEN endX = rightX THEN
+                --   ■ → → S       ■
+                --   ↑              
+                --   ↑              
+                --   ↑             E
+                --   ↑             ↓
+                --   ↑             ↓
+                --   ■ ← ← ← ← ← ← ■
                 ARRAY[endP, bottomRight, bottomLeft, topLeft, startP]
               WHEN endY = bottomY THEN
+                --   ■ → → S       ■
+                --   ↑              
+                --   ↑              
+                --   ↑             
+                --   ↑              
+                --   ↑              
+                --   ■ ← ← E       ■
                 ARRAY[endP, bottomLeft, topLeft, startP]
               WHEN endY = topY THEN
                 CASE
                 WHEN endX < startX THEN
+                  --   ■   E → → S   ■
+                  --                  
+                  --                  
+                  --                  
+                  --                  
+                  --                  
+                  --   ■             ■
                   ARRAY[endP, startP]
                 ELSE -- endX > startX
+                  --   ■ → S     E → ■
+                  --   ↑             ↓
+                  --   ↑             ↓
+                  --   ↑             ↓
+                  --   ↑             ↓
+                  --   ↑             ↓
+                  --   ■ ← ← ← ← ← ← ■
                   ARRAY[endP, topRight, bottomRight, bottomLeft, topLeft, startP]
                 END
               ELSE NULL
@@ -224,8 +362,8 @@ CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
       UNION ALL
         SELECT geom FROM coastline_already_closed_segments
       UNION ALL
-        -- If the tile fully contains at least one island but doesn't have
-        -- any coastline intesecting the edge of the tile then we need to
+        -- If the tile fully contains at least one island, but doesn't have
+        -- any coastline intesecting the edge of the tile, then we need to
         -- add the tile bounding box as an exterior ring
         SELECT ST_Boundary(%1$L::geometry) AS geom
         WHERE (SELECT count(geom) FROM coastline_open_segments) = 0
