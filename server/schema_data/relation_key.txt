@@ -1,5 +1,6 @@
 admin_level
 boundary
+brand
 colour
 informal
 name
