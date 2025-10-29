@@ -44,7 +44,7 @@ The Heirloom tile schema is tuned to be as close to OpenStreetMap as possible wh
 
 - There are only three layers: `point`, `line`, and `area`. Features may appear in multiple layers.
 - All features with specific top-level OSM keys are included (no matter what values).
-- All tags for certain [keys](server/schema_data/attribute_keys.txt) and [key prefixes](server/schema_data/attribute_key_prefixes.txt) are included as attributes (no matter what values).
+- All tags for certain keys and key prefixes are included as attributes (no matter what values).
 - Features may be filtered or aggregated depending on zoom level.
 - Coastlines and boundaries get special treatment.
 
@@ -159,4 +159,4 @@ Minutely tiles can't be cached for very long, so lightning-fast renders are crit
 
 ### What's with the name?
 
-[Heirlooms](https://en.wikipedia.org/wiki/Heirloom_plant) (pronounced *AIR-looms* in the US) are rare varieties of fruits and vegetables that are typically homegrown rather than produced for agribusiness. It's supposed to sound earthy and rustic and hopefully not pretentious.
+An [heirloom](https://en.wikipedia.org/wiki/Heirloom_plant) (pronounced *AIR-loom* in the US) is a rare varietal of fruit, vegetable, etc. that is typically homegrown rather than produced for agribusiness. Likewise, Heirloom tiles are homegrown map tiles meant for specialty use rather than mass-market deployment.

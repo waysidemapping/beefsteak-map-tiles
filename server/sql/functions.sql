@@ -381,14 +381,17 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       RETURN QUERY
       WITH
       small_points AS (
-          SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type FROM node
+          SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type
+          FROM node
           WHERE geom && env_geom
         UNION ALL
-          SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type FROM way_no_explicit_line
+          SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_no_explicit_line
           WHERE label_point && env_geom
             AND area_3857 <= min_area
         UNION ALL
-          SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type FROM area_relation
+          SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
+          FROM area_relation
           WHERE label_point && env_geom
             AND area_3857 <= min_area
       ),
@@ -501,14 +504,17 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       RETURN QUERY
       WITH
       small_points AS (
-          SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type FROM node
+          SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type
+          FROM node
           WHERE geom && env_geom
         UNION ALL
-          SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type FROM way_no_explicit_line
+          SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_no_explicit_line
           WHERE label_point && env_geom
             AND area_3857 <= min_area
         UNION ALL
-          SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type FROM area_relation
+          SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
+          FROM area_relation
           WHERE label_point && env_geom
             AND area_3857 <= min_area
       ),
