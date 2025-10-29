@@ -2,18 +2,6 @@
 -- © 2025 Quincy Morgan
 -- Licensed MIT: https://github.com/waysidemapping/heirloom-map-tiles/blob/main/LICENSE.md
 --
-
--- CREATE OR REPLACE FUNCTION z26_tile_range_for(z int, x int, y int)
--- RETURNS TABLE (x_min int, x_max int, y_min int, y_max int)
--- LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
--- AS $$
---   SELECT
---     x * (1 << (26 - z))             AS x_min,
---     ((x + 1) * (1 << (26 - z))) - 1 AS x_max,
---     y * (1 << (26 - z))             AS y_min,
---     ((y + 1) * (1 << (26 - z))) - 1 AS y_max;
--- $$;
-
 CREATE OR REPLACE FUNCTION function_get_heirloom_tile(z integer, x integer, y integer)
 RETURNS bytea
 LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE

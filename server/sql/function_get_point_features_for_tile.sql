@@ -15,6 +15,14 @@ AS $$
     max_area real;
     min_rel_extent real;
     max_rel_extent real;
+    z26_tile_x_min integer;
+    z26_tile_x_max integer;
+    z26_tile_y_min integer;
+    z26_tile_y_max integer;
+    wide_z26_tile_x_min integer;
+    wide_z26_tile_x_max integer;
+    wide_z26_tile_y_min integer;
+    wide_z26_tile_y_max integer;
   BEGIN
     env_geom := ST_TileEnvelope(z, x, y);
     env_width := ST_XMax(env_geom) - ST_XMin(env_geom);
@@ -24,23 +32,35 @@ AS $$
     max_area := power(min_extent * 4096, 2);
     min_rel_extent := min_extent * 192;
     max_rel_extent := min_extent * 192 * 16;
+
+    z26_tile_x_min := x * (1 << (26 - z));
+    z26_tile_x_max := ((x + 1) * (1 << (26 - z))) - 1;
+    z26_tile_y_min := y * (1 << (26 - z));
+    z26_tile_y_max := ((y + 1) * (1 << (26 - z))) - 1;
+
+    wide_z26_tile_x_min := (x - 1) * (1 << (26 - z));
+    wide_z26_tile_x_max := ((x + 2) * (1 << (26 - z))) - 1;
+    wide_z26_tile_y_min := (y - 1) * (1 << (26 - z));
+    wide_z26_tile_y_max := ((y + 2) * (1 << (26 - z))) - 1;
+
     IF z < 12 THEN
       RETURN QUERY EXECUTE FORMAT($f$
       WITH
       small_points AS (
           SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type
           FROM node
-          WHERE geom && %2$L
+          WHERE z26_tile_x BETWEEN %8$L AND %9$L
+            AND z26_tile_y BETWEEN %10$L AND %11$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_line
-          WHERE label_point && %2$L
-            AND area_3857 <= %4$L
+          WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point && %2$L
-            AND area_3857 <= %4$L
+          WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
       ),
       low_zoom_small_points AS (
         SELECT * FROM small_points
@@ -86,13 +106,15 @@ AS $$
       large_points AS (
           SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_line
-          WHERE label_point && %2$L
+          WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
             AND area_3857 > %4$L
             AND area_3857 < %5$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point && %2$L
+          WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
             AND area_3857 > %4$L
             AND area_3857 < %5$L
       ),
@@ -118,7 +140,8 @@ AS $$
           'r' AS osm_type,
           ARRAY[id] AS relation_ids
         FROM non_area_relation
-        WHERE bbox_centerpoint_on_surface && %2$L
+        WHERE bbox_centerpoint_on_surface_z26_tile_x BETWEEN %8$L AND %9$L
+            AND bbox_centerpoint_on_surface_z26_tile_y BETWEEN %10$L AND %11$L
           AND (
             (tags @> 'type => route' AND tags ? 'route')
             OR tags @> 'type => waterway'
@@ -147,23 +170,26 @@ AS $$
         relation_ids
       FROM all_points
       ;
-      $f$, z, env_geom, wide_env_geom, min_area, max_area, min_rel_extent, max_rel_extent);
+      $f$, z, env_geom, wide_env_geom, min_area, max_area, min_rel_extent, max_rel_extent, z26_tile_x_min, z26_tile_x_max, z26_tile_y_min, z26_tile_y_max);
     ELSE
       RETURN QUERY EXECUTE FORMAT($f$
       WITH
       small_points AS (
           SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type
           FROM node
-          WHERE geom && %2$L
+          WHERE z26_tile_x BETWEEN %8$L AND %9$L
+            AND z26_tile_y BETWEEN %10$L AND %11$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_line
-          WHERE label_point && %2$L
+          WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
             AND area_3857 <= %4$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point && %2$L
+          WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
             AND area_3857 <= %4$L
       ),
       low_zoom_small_points AS (
@@ -209,13 +235,16 @@ AS $$
       -- in order to try and avoid sharp visual cutoffs at tile bounds. For performance, this is only an estimate
       points_in_region AS (
           SELECT count(*) AS total FROM node
-          WHERE geom && %3$L
+          WHERE z26_tile_x BETWEEN %12$L AND %13$L
+            AND z26_tile_y BETWEEN %14$L AND %15$L
         UNION ALL
           SELECT count(*) AS total FROM way_no_explicit_line
-          WHERE label_point && %3$L
+          WHERE label_point_z26_tile_x BETWEEN %12$L AND %13$L
+            AND label_point_z26_tile_y BETWEEN %14$L AND %15$L
         UNION ALL
           SELECT count(*) AS total FROM area_relation
-          WHERE label_point && %3$L
+          WHERE label_point_z26_tile_x BETWEEN %12$L AND %13$L
+            AND label_point_z26_tile_y BETWEEN %14$L AND %15$L
       ),
       point_region_stats AS (
         SELECT sum(total) AS regional_point_count FROM points_in_region
@@ -231,13 +260,15 @@ AS $$
       large_points AS (
           SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_line
-          WHERE label_point && %2$L
+          WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
             AND area_3857 > %4$L
             AND area_3857 < %5$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point && %2$L
+          WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
             AND area_3857 > %4$L
             AND area_3857 < %5$L
       ),
@@ -263,7 +294,8 @@ AS $$
           'r' AS osm_type,
           ARRAY[id] AS relation_ids
         FROM non_area_relation
-        WHERE bbox_centerpoint_on_surface && %2$L
+        WHERE bbox_centerpoint_on_surface_z26_tile_x BETWEEN %8$L AND %9$L
+          AND bbox_centerpoint_on_surface_z26_tile_y BETWEEN %10$L AND %11$L
           AND (
             (tags @> 'type => route' AND tags ? 'route')
             OR tags @> 'type => waterway'
@@ -294,7 +326,7 @@ AS $$
         relation_ids
       FROM all_points
       ;
-      $f$, z, env_geom, wide_env_geom, min_area, max_area, min_rel_extent, max_rel_extent);
+      $f$, z, env_geom, wide_env_geom, min_area, max_area, min_rel_extent, max_rel_extent, z26_tile_x_min, z26_tile_x_max, z26_tile_y_min, z26_tile_y_max, wide_z26_tile_x_min, wide_z26_tile_x_max, wide_z26_tile_y_min, wide_z26_tile_y_max);
     END IF;
   END;
 $$

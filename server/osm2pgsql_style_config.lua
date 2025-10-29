@@ -3,11 +3,14 @@ local node_table = osm2pgsql.define_table({
     ids = { type = 'node', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
-        { column = 'geom', type = 'point', proj = '3857', not_null = true }
+        { column = 'geom', type = 'point', proj = '3857', not_null = true },
+        { column = 'z26_tile_x', type = 'int', create_only = true },
+        { column = 'z26_tile_y', type = 'int', create_only = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
-        { column = 'geom', method = 'gist' }
+        { column = 'geom', method = 'gist' },
+        { column = {'z26_tile_x', 'z26_tile_y'}, method = 'btree' }
     }
 })
 
@@ -55,7 +58,9 @@ local way_no_explicit_line_table = osm2pgsql.define_table({
         { column = 'is_explicit_area', type = 'boolean', not_null = true },
         { column = 'area_3857', type = 'real', not_null = true },
         { column = 'bbox_diagonal_length', type = 'real', not_null = true },
-        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true }
+        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
+        { column = 'label_point_z26_tile_x', type = 'int', create_only = true },
+        { column = 'label_point_z26_tile_y', type = 'int', create_only = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
@@ -63,7 +68,8 @@ local way_no_explicit_line_table = osm2pgsql.define_table({
         { column = 'is_explicit_area', method = 'btree' },
         { column = 'area_3857', method = 'btree' },
         { column = 'bbox_diagonal_length', method = 'btree' },
-        { column = 'label_point', method = 'gist' }
+        { column = 'label_point', method = 'gist' },
+        { column = {'label_point_z26_tile_x', 'label_point_z26_tile_y'}, method = 'btree' }
     }
 })
 
@@ -90,14 +96,17 @@ local area_relation_table = osm2pgsql.define_table({
         { column = 'geom', type = 'multipolygon', proj = '3857', not_null = true },
         { column = 'area_3857', type = 'real' },
         { column = 'label_node_id', type = 'int8' },
-        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true }
+        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
+        { column = 'label_point_z26_tile_x', type = 'int', create_only = true },
+        { column = 'label_point_z26_tile_y', type = 'int', create_only = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
         { column = 'geom', method = 'gist' },
         { column = 'area_3857', method = 'btree' },
         { column = 'label_node_id', method = 'btree' },
-        { column = 'label_point', method = 'gist' }
+        { column = 'label_point', method = 'gist' },
+        { column = {'label_point_z26_tile_x', 'label_point_z26_tile_y'}, method = 'btree' }
     }
 })
 
@@ -110,6 +119,8 @@ local non_area_relation_table = osm2pgsql.define_table({
         { column = 'geom', type = 'geometrycollection', proj = '3857' },
         { column = 'bbox', type = 'text', sql_type = 'GEOMETRY(Polygon, 3857)' },
         { column = 'bbox_centerpoint_on_surface', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
+        { column = 'bbox_centerpoint_on_surface_z26_tile_x', type = 'int', create_only = true },
+        { column = 'bbox_centerpoint_on_surface_z26_tile_y', type = 'int', create_only = true },
         { column = 'bbox_diagonal_length', type = 'real' }
     },
     indexes = {
@@ -117,6 +128,7 @@ local non_area_relation_table = osm2pgsql.define_table({
         { column = 'geom', method = 'gist' },
         { column = 'bbox', method = 'gist' },
         { column = 'bbox_centerpoint_on_surface', method = 'gist' },
+        { column = {'bbox_centerpoint_on_surface_z26_tile_x', 'bbox_centerpoint_on_surface_z26_tile_y'}, method = 'btree' },
         { column = 'bbox_diagonal_length', method = 'btree' }
     }
 })
