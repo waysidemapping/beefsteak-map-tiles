@@ -11,7 +11,8 @@
 -- The output is suitable for rendering the ocean with a fill but not with an outline since
 -- the shape may contain the tile edges.
 -- 
--- This is done per-tile with no global preprocessing. Thus, it works in databases receiving frequent updates.
+-- This is done per-tile with no global preprocessing. Thus, it's compatible with databases
+-- receiving frequent updates.
 --
 -- ## Prerequisites
 --
@@ -35,6 +36,7 @@
 --     * Else we're on land, return null.
 --
 -- ## Caveats
+-- 
 -- * If your database contains incomplete data, certain tiles containing no coastlines will not render correctly.
 -- 
 -- 

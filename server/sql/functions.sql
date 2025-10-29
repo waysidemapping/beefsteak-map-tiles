@@ -532,7 +532,7 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       ),
       ranked_small_points AS (
         SELECT *,
-          -- Assume that a feature with a name (e.g. park, business, artwork) is more important one without
+          -- Assume that a feature with a name (e.g. park, business, artwork) is more important than one without
           -- (e.g. crossing, pole, gate). Features linked to Wikidata items are assumed to be notable regardless
           (tags ? 'name' OR tags ? 'wikidata') AS is_notable
         FROM small_points
