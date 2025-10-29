@@ -15,9 +15,9 @@ AS $$
   BEGIN
     env_geom := ST_TileEnvelope(z, x, y);
     env_width := ST_XMax(env_geom) - ST_XMin(env_geom);
-    min_way_extent := (env_width / 1024.0)::real;
-    min_rel_extent := (min_way_extent * 192)::real;
-    simplify_tolerance := (min_way_extent * 0.75)::real;
+    min_way_extent := env_width / 1024.0;
+    min_rel_extent := min_way_extent * 192;
+    simplify_tolerance := min_way_extent * 0.75;
     IF z < 12 THEN
       RETURN QUERY EXECUTE FORMAT($f$
       WITH

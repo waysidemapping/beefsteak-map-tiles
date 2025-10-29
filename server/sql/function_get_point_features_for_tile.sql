@@ -19,11 +19,11 @@ AS $$
     env_geom := ST_TileEnvelope(z, x, y);
     env_width := ST_XMax(env_geom) - ST_XMin(env_geom);
     wide_env_geom := ST_Expand(env_geom, env_width);
-    min_extent := (env_width / 1024.0)::real;
-    min_area := power(min_extent * 32, 2)::real;
-    max_area := power(min_extent * 4096, 2)::real;
-    min_rel_extent := (min_extent * 192)::real;
-    max_rel_extent := (min_extent * 192 * 16)::real;
+    min_extent := env_width / 1024.0;
+    min_area := power(min_extent * 32, 2);
+    max_area := power(min_extent * 4096, 2);
+    min_rel_extent := min_extent * 192;
+    max_rel_extent := min_extent * 192 * 16;
     IF z < 12 THEN
       RETURN QUERY EXECUTE FORMAT($f$
       WITH
