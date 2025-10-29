@@ -3,51 +3,59 @@
 # set -x # echo on
 
 APP_DIR="/usr/src/app"
-SQL_FUNCTIONS_FILE="sql/functions.sql"
 DB_NAME="osm"
 
 # We're going to fetch the OSM key information from text files and insert it into the SQL functions
 
-SQL_CONTENT=$(<"$SQL_FUNCTIONS_FILE")
+# area layer
 
-# point layer
+AREA_SQL_FUNCTION=$(<"sql/function_get_area_features_for_tile.sql")
 
-POINT_KEY_LIST=$(grep -v '^$' "$APP_DIR/schema_data/point_key.txt" | sed "s/.*/'&'/" | paste -sd, -)
-SQL_CONTENT=${SQL_CONTENT//\{\{POINT_KEY_LIST\}\}/$POINT_KEY_LIST}
+AREA_KEY_LIST=$(grep -v '^$' "$APP_DIR/schema_data/area_key.txt" | sed "s/.*/'&'/" | paste -sd, -)
+AREA_SQL_FUNCTION=${AREA_SQL_FUNCTION//\{\{AREA_KEY_LIST\}\}/$AREA_KEY_LIST}
 
-POINT_KEY_PREFIX_LIKE_STATEMENTS=$(grep -v '^$' "$APP_DIR/schema_data/point_key_prefix.txt" | awk '{print "OR key LIKE \x27" $0 "%\x27"}' | paste -sd' ' -)
-SQL_CONTENT=${SQL_CONTENT//\{\{POINT_KEY_PREFIX_LIKE_STATEMENTS\}\}/$POINT_KEY_PREFIX_LIKE_STATEMENTS}
+AREA_KEY_PREFIX_LIKE_STATEMENTS=$(grep -v '^$' "$APP_DIR/schema_data/area_key_prefix.txt" | awk '{print "OR key LIKE \x27" $0 "%\x27"}' | paste -sd' ' -)
+AREA_SQL_FUNCTION=${AREA_SQL_FUNCTION//\{\{AREA_KEY_PREFIX_LIKE_STATEMENTS\}\}/$AREA_KEY_PREFIX_LIKE_STATEMENTS}
+
+LOW_ZOOM_AREA_KEY_LIST=$(grep -v '^$' "$APP_DIR/schema_data/area_key_low_zoom.txt" | sed "s/.*/'&'/" | paste -sd, -)
+AREA_SQL_FUNCTION=${AREA_SQL_FUNCTION//\{\{LOW_ZOOM_AREA_KEY_LIST\}\}/$LOW_ZOOM_AREA_KEY_LIST}
 
 # line layer
 
+LINE_SQL_FUNCTION=$(<"sql/function_get_line_features_for_tile.sql")
+
 LINE_KEY_LIST=$(grep -v '^$' "$APP_DIR/schema_data/line_key.txt" | sed "s/.*/'&'/" | paste -sd, -)
-SQL_CONTENT=${SQL_CONTENT//\{\{LINE_KEY_LIST\}\}/$LINE_KEY_LIST}
+LINE_SQL_FUNCTION=${LINE_SQL_FUNCTION//\{\{LINE_KEY_LIST\}\}/$LINE_KEY_LIST}
 
 LINE_KEY_PREFIX_LIKE_STATEMENTS=$(grep -v '^$' "$APP_DIR/schema_data/line_key_prefix.txt" | awk '{print "OR key LIKE \x27" $0 "%\x27"}' | paste -sd' ' -)
-SQL_CONTENT=${SQL_CONTENT//\{\{LINE_KEY_PREFIX_LIKE_STATEMENTS\}\}/$LINE_KEY_PREFIX_LIKE_STATEMENTS}
+LINE_SQL_FUNCTION=${LINE_SQL_FUNCTION//\{\{LINE_KEY_PREFIX_LIKE_STATEMENTS\}\}/$LINE_KEY_PREFIX_LIKE_STATEMENTS}
 
 LOW_ZOOM_LINE_KEY_LIST=$(grep -v '^$' "$APP_DIR/schema_data/line_key_low_zoom.txt" | sed "s/.*/'&'/" | paste -sd, -)
-SQL_CONTENT=${SQL_CONTENT//\{\{LOW_ZOOM_LINE_KEY_LIST\}\}/$LOW_ZOOM_LINE_KEY_LIST}
+LINE_SQL_FUNCTION=${LINE_SQL_FUNCTION//\{\{LOW_ZOOM_LINE_KEY_LIST\}\}/$LOW_ZOOM_LINE_KEY_LIST}
 
-# area layer
+# point layer
 
-AREA_KEY_LIST=$(grep -v '^$' "$APP_DIR/schema_data/area_key.txt" | sed "s/.*/'&'/" | paste -sd, -)
-SQL_CONTENT=${SQL_CONTENT//\{\{AREA_KEY_LIST\}\}/$AREA_KEY_LIST}
+POINT_SQL_FUNCTION=$(<"sql/function_get_point_features_for_tile.sql")
 
-AREA_KEY_PREFIX_LIKE_STATEMENTS=$(grep -v '^$' "$APP_DIR/schema_data/area_key_prefix.txt" | awk '{print "OR key LIKE \x27" $0 "%\x27"}' | paste -sd' ' -)
-SQL_CONTENT=${SQL_CONTENT//\{\{AREA_KEY_PREFIX_LIKE_STATEMENTS\}\}/$AREA_KEY_PREFIX_LIKE_STATEMENTS}
+POINT_KEY_LIST=$(grep -v '^$' "$APP_DIR/schema_data/point_key.txt" | sed "s/.*/'&'/" | paste -sd, -)
+POINT_SQL_FUNCTION=${POINT_SQL_FUNCTION//\{\{POINT_KEY_LIST\}\}/$POINT_KEY_LIST}
 
-LOW_ZOOM_AREA_KEY_LIST=$(grep -v '^$' "$APP_DIR/schema_data/area_key_low_zoom.txt" | sed "s/.*/'&'/" | paste -sd, -)
-SQL_CONTENT=${SQL_CONTENT//\{\{LOW_ZOOM_AREA_KEY_LIST\}\}/$LOW_ZOOM_AREA_KEY_LIST}
+POINT_KEY_PREFIX_LIKE_STATEMENTS=$(grep -v '^$' "$APP_DIR/schema_data/point_key_prefix.txt" | awk '{print "OR key LIKE \x27" $0 "%\x27"}' | paste -sd' ' -)
+POINT_SQL_FUNCTION=${POINT_SQL_FUNCTION//\{\{POINT_KEY_PREFIX_LIKE_STATEMENTS\}\}/$POINT_KEY_PREFIX_LIKE_STATEMENTS}
 
 # relation layer
 
+ROOT_SQL_FUNCTION=$(<"sql/function_get_heirloom_tile.sql")
+
 RELATION_KEY_LIST=$(grep -v '^$' "$APP_DIR/schema_data/relation_key.txt" | sed "s/.*/'&'/" | paste -sd, -)
-SQL_CONTENT=${SQL_CONTENT//\{\{RELATION_KEY_LIST\}\}/$RELATION_KEY_LIST}
+ROOT_SQL_FUNCTION=${ROOT_SQL_FUNCTION//\{\{RELATION_KEY_LIST\}\}/$RELATION_KEY_LIST}
 
 RELATION_KEY_PREFIX_LIKE_STATEMENTS=$(grep -v '^$' "$APP_DIR/schema_data/relation_key_prefix.txt" | awk '{print "OR key LIKE \x27" $0 "%\x27"}' | paste -sd' ' -)
-SQL_CONTENT=${SQL_CONTENT//\{\{RELATION_KEY_PREFIX_LIKE_STATEMENTS\}\}/$RELATION_KEY_PREFIX_LIKE_STATEMENTS}
+ROOT_SQL_FUNCTION=${ROOT_SQL_FUNCTION//\{\{RELATION_KEY_PREFIX_LIKE_STATEMENTS\}\}/$RELATION_KEY_PREFIX_LIKE_STATEMENTS}
 
 
 sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 -f "sql/function_get_ocean_for_tile.sql"
-sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$SQL_CONTENT"
+sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$AREA_SQL_FUNCTION"
+sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$LINE_SQL_FUNCTION"
+sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$POINT_SQL_FUNCTION"
+sudo -u postgres psql "$DB_NAME" -v ON_ERROR_STOP=1 <<< "$ROOT_SQL_FUNCTION"
