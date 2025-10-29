@@ -122,7 +122,8 @@ CREATE OR REPLACE FUNCTION function_get_area_features(z integer, env_geom geomet
   ;
 END IF;
 END;
-$$;
+$$
+SET plan_cache_mode = force_custom_plan;
 
 CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geometry, min_way_extent real, min_rel_extent real, simplify_tolerance real)
   RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _relation_ids int8[])
@@ -368,7 +369,8 @@ CREATE OR REPLACE FUNCTION function_get_line_features(z integer, env_geom geomet
       ;
   END IF;
   END;
-$$;
+$$
+SET plan_cache_mode = force_custom_plan;
 
 CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geometry, wide_env_geom geometry, min_area real, max_area real, min_rel_extent real, max_rel_extent real)
   RETURNS TABLE(_id int8, _tags jsonb, _geom geometry, _area_3857 real, _osm_type text, _relation_ids int8[])
@@ -640,7 +642,8 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       ;
   END IF;
   END;
-$$;
+$$
+SET plan_cache_mode = force_custom_plan;
 
 CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x integer, y integer, env_geom geometry, min_extent real)
   RETURNS bytea
@@ -757,16 +760,16 @@ CREATE OR REPLACE FUNCTION function_get_heirloom_tile_for_envelope(z integer, x 
         SELECT ST_AsMVT(mvt_point_features, 'point', 4096, 'geom', 'feature_id') AS mvt FROM mvt_point_features
     )
     SELECT string_agg(mvt, ''::bytea) FROM tiles;
-$function_body$;
+$function_body$
+SET plan_cache_mode = force_custom_plan;
 
 CREATE OR REPLACE FUNCTION function_get_heirloom_tile(z integer, x integer, y integer)
   RETURNS bytea
-  LANGUAGE sql VOLATILE STRICT PARALLEL SAFE
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $function_body$
-  -- planning optimization can change a lot based on parameter values so don't used cached plans
-  SET plan_cache_mode = force_custom_plan;
   SELECT * FROM function_get_heirloom_tile_for_envelope(z, x, y, ST_TileEnvelope(z, x, y), ((ST_XMax(ST_TileEnvelope(z, x, y)) - ST_XMin(ST_TileEnvelope(z, x, y))) / 1024.0)::real);
-$function_body$;
+$function_body$
+SET plan_cache_mode = force_custom_plan;
 
 COMMENT ON FUNCTION function_get_heirloom_tile IS
 $tilejson$

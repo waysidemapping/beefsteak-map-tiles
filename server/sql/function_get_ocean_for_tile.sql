@@ -41,8 +41,8 @@
 -- 
 -- 
 CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
-  RETURNS geometry(multipolygon, 3857)
-  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+RETURNS geometry(multipolygon, 3857)
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   AS $$
     WITH
     envelope AS (
@@ -457,4 +457,5 @@ CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(env_geom geometry)
       END AS geom
       FROM ocean_multipolygon
   ;
-$$;
+$$
+SET plan_cache_mode = force_custom_plan;
