@@ -81,18 +81,6 @@ local coastline_table = osm2pgsql.define_table({
     }
 })
 
--- Contains all relations (needed to quickly select relation tags based on relation IDs)
-local relation_table = osm2pgsql.define_table({
-    name = 'relation',
-    ids = { type = 'relation', id_column = 'id', create_index = 'primary_key' },
-    columns = {
-        { column = 'tags', type = 'hstore', not_null = true }
-    },
-    indexes = {
-        { column = 'tags', method = 'gin' }
-    }
-})
-
 -- Contains only multi-part area relations
 local area_relation_table = osm2pgsql.define_table({
     name = 'area_relation',
@@ -280,10 +268,6 @@ function osm2pgsql.process_relation(object)
             end
         end
 
-        relation_table:insert({
-            tags = object.tags
-        })
-
         if multipolygon_relation_types[relType] then
             local geom = object:as_multipolygon():transform(3857)
 
@@ -315,7 +299,6 @@ function osm2pgsql.process_relation(object)
             })
         end
 
-       
     end
 end
 
