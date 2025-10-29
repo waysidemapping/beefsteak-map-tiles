@@ -26,7 +26,7 @@ AS $function_body$
         _geom AS geom,
         _area_3857 AS area_3857,
         _osm_type AS osm_type
-      FROM function_get_area_features(z, x, y)
+      FROM function_get_area_features_for_tile(z, x, y)
     ),
     area_features AS (
         SELECT id, tags, geom, area_3857, osm_type
@@ -54,7 +54,7 @@ AS $function_body$
         _tags AS tags,
         _geom AS geom,
         _relation_ids AS relation_ids
-      FROM function_get_line_features(z, x, y)
+      FROM function_get_line_features_for_tile(z, x, y)
     ),
     mvt_line_features AS (
       SELECT
@@ -71,7 +71,7 @@ AS $function_body$
         _area_3857 AS area_3857,
         _osm_type AS osm_type,
         _relation_ids AS relation_ids
-      FROM function_get_point_features(z, x, y)
+      FROM function_get_point_features_for_tile(z, x, y)
     ),
     mvt_point_features AS (
       SELECT
