@@ -19,17 +19,17 @@ AS $$
     min_area := power(min_extent * 4, 2)::real;
     simplify_tolerance := (min_extent * 0.75)::real;
   IF z < 12 THEN
-    RETURN QUERY
+    RETURN QUERY EXECUTE FORMAT($f$
     WITH
     closed_ways AS (
       SELECT id, tags, geom, area_3857, 'w' AS osm_type, is_explicit_area FROM way_no_explicit_line
-      WHERE geom && env_geom
-        AND area_3857 > min_area
+      WHERE geom && %2$L
+        AND area_3857 > %3$L
     ),
     relation_areas AS (
       SELECT id, tags, geom, area_3857, 'r' AS osm_type, true AS is_explicit_area FROM area_relation
-      WHERE geom && env_geom
-        AND area_3857 > min_area
+      WHERE geom && %2$L
+        AND area_3857 > %3$L
     ),
     areas AS (
         SELECT * FROM closed_ways
@@ -69,24 +69,25 @@ AS $$
     SELECT
       NULL::int8 AS id,
       tags,
-      ST_Simplify(ST_Multi(ST_Collect(geom)), simplify_tolerance, true) AS geom,
+      ST_Simplify(ST_Multi(ST_Collect(geom)), %4$L, true) AS geom,
       NULL::real AS area_3857,
       NULL::text AS osm_type
     FROM tagged_areas
     GROUP BY tags
-  ;
+    ;
+    $f$, z, env_geom, min_area, simplify_tolerance);
   ELSE
-  RETURN QUERY
-  WITH
+    RETURN QUERY EXECUTE FORMAT($f$
+    WITH
     closed_ways AS (
       SELECT id, tags, geom, area_3857, 'w' AS osm_type, is_explicit_area FROM way_no_explicit_line
-      WHERE geom && env_geom
-        AND area_3857 > min_area
+      WHERE geom && %2$L
+        AND area_3857 > %3$L
     ),
     relation_areas AS (
       SELECT id, tags, geom, area_3857, 'r' AS osm_type, true AS is_explicit_area FROM area_relation
-      WHERE geom && env_geom
-        AND area_3857 > min_area
+      WHERE geom && %2$L
+        AND area_3857 > %3$L
     ),
     areas AS (
         SELECT * FROM closed_ways
@@ -109,11 +110,11 @@ AS $$
       UNION ALL
         SELECT * FROM areas
         WHERE tags ? 'building'
-          AND z >= 14
+          AND %1$L >= 14
       UNION ALL
         SELECT * FROM areas
         WHERE tags ?| ARRAY['area:highway', 'building:part', 'indoor', 'playground']
-          AND z >= 18
+          AND %1$L >= 18
       UNION ALL
         SELECT * FROM areas
         WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
@@ -130,12 +131,13 @@ AS $$
         FROM each(tags)
         WHERE key IN ({{AREA_KEY_LIST}}) {{AREA_KEY_PREFIX_LIKE_STATEMENTS}}
       ) AS tags,
-      ST_Simplify(geom, simplify_tolerance, true) AS geom,
+      ST_Simplify(geom, %4$L, true) AS geom,
       area_3857,
       osm_type
     FROM deduped_areas
   ;
-END IF;
+  $f$, z, env_geom, min_area, simplify_tolerance);
+  END IF;
 END;
 $$
 SET plan_cache_mode = force_custom_plan;

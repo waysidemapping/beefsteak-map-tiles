@@ -25,22 +25,22 @@ AS $$
     min_rel_extent := (min_extent * 192)::real;
     max_rel_extent := (min_extent * 192 * 16)::real;
     IF z < 12 THEN
-      RETURN QUERY
+      RETURN QUERY EXECUTE FORMAT($f$
       WITH
       small_points AS (
           SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type
           FROM node
-          WHERE geom && env_geom
+          WHERE geom && %2$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_line
-          WHERE label_point && env_geom
-            AND area_3857 <= min_area
+          WHERE label_point && %2$L
+            AND area_3857 <= %4$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point && env_geom
-            AND area_3857 <= min_area
+          WHERE label_point && %2$L
+            AND area_3857 <= %4$L
       ),
       low_zoom_small_points AS (
         SELECT * FROM small_points
@@ -55,24 +55,24 @@ AS $$
           (
             tags @> 'place => city'
           )
-          AND z >= 4
+          AND %1$L >= 4
         ) OR (
           (
             tags @> 'place => town'
           )
-          AND z >= 6
+          AND %1$L >= 6
         ) OR (
           (
             tags @> 'place => village'
           )
-          AND z >= 7
+          AND %1$L >= 7
         ) OR (
           (
             tags @> 'place => hamlet'
             OR tags @> 'natural => peak'
             OR tags @> 'natural => volcano'
           )
-          AND z >= 8
+          AND %1$L >= 8
         ) OR (
           (
             tags @> 'place => locality'
@@ -80,21 +80,21 @@ AS $$
             OR tags @> 'aeroway => aerodrome'
             OR tags @> 'highway => motorway_junction'
           )
-          AND z >= 9
+          AND %1$L >= 9
         )
       ),
       large_points AS (
           SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_line
-          WHERE label_point && env_geom
-            AND area_3857 > min_area
-            AND area_3857 < max_area
+          WHERE label_point && %2$L
+            AND area_3857 > %4$L
+            AND area_3857 < %5$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point && env_geom
-            AND area_3857 > min_area
-            AND area_3857 < max_area
+          WHERE label_point && %2$L
+            AND area_3857 > %4$L
+            AND area_3857 < %5$L
       ),
       filtered_large_points AS (
         SELECT * FROM large_points
@@ -118,14 +118,14 @@ AS $$
           'r' AS osm_type,
           ARRAY[id] AS relation_ids
         FROM non_area_relation
-        WHERE bbox_centerpoint_on_surface && env_geom
+        WHERE bbox_centerpoint_on_surface && %2$L
           AND (
             (tags @> 'type => route' AND tags ? 'route')
             OR tags @> 'type => waterway'
           )
-          AND bbox_diagonal_length > min_rel_extent
-          AND bbox_diagonal_length < max_rel_extent
-          AND z >= 4
+          AND bbox_diagonal_length > %6$L
+          AND bbox_diagonal_length < %7$L
+          AND %1$L >= 4
       ),
       all_points AS (
           SELECT id, tags::jsonb, geom, area_3857, osm_type, NULL::int8[] AS relation_ids FROM low_zoom_small_points
@@ -147,23 +147,24 @@ AS $$
         relation_ids
       FROM all_points
       ;
+      $f$, z, env_geom, wide_env_geom, min_area, max_area, min_rel_extent, max_rel_extent);
     ELSE
-      RETURN QUERY
+      RETURN QUERY EXECUTE FORMAT($f$
       WITH
       small_points AS (
           SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type
           FROM node
-          WHERE geom && env_geom
+          WHERE geom && %2$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_line
-          WHERE label_point && env_geom
-            AND area_3857 <= min_area
+          WHERE label_point && %2$L
+            AND area_3857 <= %4$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point && env_geom
-            AND area_3857 <= min_area
+          WHERE label_point && %2$L
+            AND area_3857 <= %4$L
       ),
       low_zoom_small_points AS (
         SELECT * FROM small_points
@@ -195,7 +196,7 @@ AS $$
           tags ?| ARRAY['advertising', 'amenity', 'boundary', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
           OR (
             tags ? 'building'
-            AND (tags ? 'name' OR tags ? 'wikidata' OR z >= 15)
+            AND (tags ? 'name' OR tags ? 'wikidata' OR %1$L >= 15)
           ) OR (
             tags ? 'natural'
             AND NOT tags @> 'natural => coastline'
@@ -208,13 +209,13 @@ AS $$
       -- in order to try and avoid sharp visual cutoffs at tile bounds. For performance, this is only an estimate
       points_in_region AS (
           SELECT count(*) AS total FROM node
-          WHERE geom && wide_env_geom
+          WHERE geom && %3$L
         UNION ALL
           SELECT count(*) AS total FROM way_no_explicit_line
-          WHERE label_point && wide_env_geom
+          WHERE label_point && %3$L
         UNION ALL
           SELECT count(*) AS total FROM area_relation
-          WHERE label_point && wide_env_geom
+          WHERE label_point && %3$L
       ),
       point_region_stats AS (
         SELECT sum(total) AS regional_point_count FROM points_in_region
@@ -230,15 +231,15 @@ AS $$
       large_points AS (
           SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_line
-          WHERE label_point && env_geom
-            AND area_3857 > min_area
-            AND area_3857 < max_area
+          WHERE label_point && %2$L
+            AND area_3857 > %4$L
+            AND area_3857 < %5$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point && env_geom
-            AND area_3857 > min_area
-            AND area_3857 < max_area
+          WHERE label_point && %2$L
+            AND area_3857 > %4$L
+            AND area_3857 < %5$L
       ),
       filtered_large_points AS (
         SELECT * FROM large_points
@@ -262,14 +263,14 @@ AS $$
           'r' AS osm_type,
           ARRAY[id] AS relation_ids
         FROM non_area_relation
-        WHERE bbox_centerpoint_on_surface && env_geom
+        WHERE bbox_centerpoint_on_surface && %2$L
           AND (
             (tags @> 'type => route' AND tags ? 'route')
             OR tags @> 'type => waterway'
           )
-          AND bbox_diagonal_length > min_rel_extent
-          AND bbox_diagonal_length < max_rel_extent
-          AND z >= 4
+          AND bbox_diagonal_length > %6$L
+          AND bbox_diagonal_length < %7$L
+          AND %1$L >= 4
       ),
       all_points AS (
           SELECT id, tags::jsonb, geom, area_3857, osm_type, NULL::int8[] AS relation_ids FROM low_zoom_small_points
@@ -293,6 +294,7 @@ AS $$
         relation_ids
       FROM all_points
       ;
+      $f$, z, env_geom, wide_env_geom, min_area, max_area, min_rel_extent, max_rel_extent);
     END IF;
   END;
 $$

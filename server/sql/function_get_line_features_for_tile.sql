@@ -19,7 +19,7 @@ AS $$
     min_rel_extent := (min_way_extent * 192)::real;
     simplify_tolerance := (min_way_extent * 0.75)::real;
     IF z < 12 THEN
-      RETURN QUERY
+      RETURN QUERY EXECUTE FORMAT($f$
       WITH
       routes AS (
         SELECT
@@ -31,10 +31,10 @@ AS $$
         FROM way_no_explicit_area w
         JOIN way_relation_member rw ON w.id = rw.member_id
         JOIN non_area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && env_geom
-          AND r.geom && env_geom
+        WHERE w.geom && %2$L
+          AND r.geom && %2$L
           AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.bbox_diagonal_length > min_rel_extent
+          AND r.bbox_diagonal_length > %4$L
           AND r.tags @> 'type => route'
           AND r.tags ? 'route'
       ),
@@ -48,11 +48,11 @@ AS $$
         FROM way_no_explicit_area w
         JOIN way_relation_member rw ON w.id = rw.member_id AND rw.member_role = 'main_stream'
         JOIN non_area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && env_geom
-          AND r.geom && env_geom
+        WHERE w.geom && %2$L
+          AND r.geom && %2$L
           AND w.tags ? 'waterway'
           AND r.tags @> 'type => waterway'
-          AND r.bbox_diagonal_length > min_rel_extent
+          AND r.bbox_diagonal_length > %4$L
       ),
       admin_boundaries AS (
         SELECT w.id,
@@ -63,8 +63,8 @@ AS $$
         FROM way w
         JOIN way_relation_member rw ON w.id = rw.member_id
         JOIN area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && env_geom
-          AND r.geom && env_geom
+        WHERE w.geom && %2$L
+          AND r.geom && %2$L
           AND r.tags @> 'boundary => administrative'
           AND (
             r.tags @> 'admin_level => 1'
@@ -73,7 +73,7 @@ AS $$
             OR r.tags @> 'admin_level => 4'
             OR r.tags @> 'admin_level => 5'
             OR (
-              z >= 6 AND r.tags @> 'admin_level => 6'
+              %1$L >= 6 AND r.tags @> 'admin_level => 6'
             )
           )
       ),
@@ -99,7 +99,7 @@ AS $$
       grouped_and_simplified AS (
         SELECT
           tags,
-          ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), simplify_tolerance, true) AS geom,
+          ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %5$L, true) AS geom,
           ANY_VALUE(relation_ids) AS relation_ids
         FROM collapsed
         GROUP BY tags
@@ -111,14 +111,15 @@ AS $$
         relation_ids
       FROM grouped_and_simplified
       ;
+      $f$, z, env_geom, min_way_extent, min_rel_extent, simplify_tolerance);
     ELSE
-      RETURN QUERY
+      RETURN QUERY EXECUTE FORMAT($f$
       WITH
       ways_in_tile AS (
         SELECT id, tags, geom, is_explicit_line
         FROM way_no_explicit_area
-        WHERE geom && env_geom
-          AND bbox_diagonal_length > min_way_extent
+        WHERE geom && %2$L
+          AND bbox_diagonal_length > %3$L
       ),
       filtered_lines AS (
         SELECT id, tags, geom
@@ -140,10 +141,10 @@ AS $$
         ) OR (
           tags ? 'highway'
           AND NOT (tags @> 'highway => footway' AND tags ? 'footway')
-          AND z >= 13
+          AND %1$L >= 13
         ) OR (
           tags ? 'highway'
-          AND z >= 15
+          AND %1$L >= 15
         ) OR (
           tags ?| ARRAY['waterway']
         ) OR (
@@ -153,22 +154,22 @@ AS $$
           AND NOT tags ? 'service'
         ) OR (
           tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'power', 'railway', 'route', 'telecom']
-          AND z >= 13
+          AND %1$L >= 13
         ) OR (
           tags ?| ARRAY['man_made', 'natural']
           AND is_explicit_line
-          AND z >= 13
+          AND %1$L >= 13
         ) OR (
           tags @> 'natural => coastline'
-          AND z >= 13
+          AND %1$L >= 13
         ) OR (
           tags ?| ARRAY['golf']
           AND is_explicit_line
-          AND z >= 15
+          AND %1$L >= 15
         ) OR (
           tags ?| ARRAY['indoor']
           AND is_explicit_line
-          AND z >= 18
+          AND %1$L >= 18
         )
       ),
       routes AS (
@@ -181,10 +182,10 @@ AS $$
         FROM way_no_explicit_area w
         JOIN way_relation_member rw ON w.id = rw.member_id
         JOIN non_area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && env_geom
-          AND r.geom && env_geom
+        WHERE w.geom && %2$L
+          AND r.geom && %2$L
           AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.bbox_diagonal_length > min_rel_extent
+          AND r.bbox_diagonal_length > %4$L
           AND r.tags @> 'type => route'
           AND r.tags ? 'route'
       ),
@@ -198,11 +199,11 @@ AS $$
         FROM way_no_explicit_area w
         JOIN way_relation_member rw ON w.id = rw.member_id
         JOIN non_area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && env_geom
-          AND r.geom && env_geom
+        WHERE w.geom && %2$L
+          AND r.geom && %2$L
           AND w.tags ? 'waterway'
           AND r.tags @> 'type => waterway'
-          AND r.bbox_diagonal_length > min_rel_extent
+          AND r.bbox_diagonal_length > %4$L
       ),
       admin_boundaries AS (
         SELECT w.id,
@@ -213,8 +214,8 @@ AS $$
         FROM way w
         JOIN way_relation_member rw ON w.id = rw.member_id
         JOIN area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && env_geom
-          AND r.geom && env_geom
+        WHERE w.geom && %2$L
+          AND r.geom && %2$L
           AND r.tags @> 'boundary => administrative'
           AND r.tags ? 'admin_level'
       ),
@@ -241,7 +242,7 @@ AS $$
         GROUP BY id
       ),
       simplified_lines AS (
-        SELECT id, tags, ST_Simplify(geom, simplify_tolerance, true) AS geom, relation_ids
+        SELECT id, tags, ST_Simplify(geom, %5$L, true) AS geom, relation_ids
         FROM collapsed
       )
       SELECT
@@ -249,12 +250,13 @@ AS $$
         (
           SELECT jsonb_object_agg(key, value)
           FROM jsonb_each(tags)
-          WHERE key IN ({{LINE_KEY_LIST}}) {{LINE_KEY_PREFIX_LIKE_STATEMENTS}} OR key LIKE 'm.%'
+          WHERE key IN ({{LINE_KEY_LIST}}) {{LINE_KEY_PREFIX_LIKE_STATEMENTS}} OR key LIKE 'm.%%'
         ) AS tags,
         geom,
         relation_ids
       FROM simplified_lines
       ;
+      $f$, z, env_geom, min_way_extent, min_rel_extent, simplify_tolerance);
     END IF;
   END;
 $$
