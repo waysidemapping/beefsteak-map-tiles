@@ -554,13 +554,13 @@ CREATE OR REPLACE FUNCTION function_get_point_features(z integer, env_geom geome
       -- Count the number of point-like features in this region. We use a region larger than the tile itself
       -- in order to try and avoid sharp visual cutoffs at tile bounds. For performance, this is only an estimate
       points_in_region AS (
-          SELECT count(id) AS total FROM node
+          SELECT count(*) AS total FROM node
           WHERE geom && wide_env_geom
         UNION ALL
-          SELECT count(id) AS total FROM way_no_explicit_line
+          SELECT count(*) AS total FROM way_no_explicit_line
           WHERE label_point && wide_env_geom
         UNION ALL
-          SELECT count(id) AS total FROM area_relation
+          SELECT count(*) AS total FROM area_relation
           WHERE label_point && wide_env_geom
       ),
       point_region_stats AS (
