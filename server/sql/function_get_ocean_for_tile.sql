@@ -47,14 +47,17 @@ AS $$
   DECLARE
     env_geom geometry;
     min_area double precision;
-    leftX double precision;
-    rightX double precision;
-    bottomY double precision;
-    topY double precision;
-    topLeft geometry;
-    topRight geometry;
-    bottomLeft geometry;
-    bottomRight geometry;
+    -- These must be doubles or else equality comparisons will break
+    left_x double precision;
+    right_x double precision;
+    bottom_y double precision;
+    top_y double precision;
+    
+    top_left geometry;
+    top_right geometry;
+    bottom_left geometry;
+    bottom_right geometry;
+    
     env_width double precision;
     env_height double precision;
     simplify_tolerance double precision;
@@ -63,23 +66,23 @@ AS $$
     env_geom := ST_TileEnvelope(_z, _x, _y);
     min_area := ST_Area(env_geom) * 0.00001;
 
-    leftX := ST_XMin(env_geom);
-    rightX := ST_XMax(env_geom);
-    bottomY := ST_YMin(env_geom);
-    topY := ST_YMax(env_geom);
+    left_x := ST_XMin(env_geom);
+    right_x := ST_XMax(env_geom);
+    bottom_y := ST_YMin(env_geom);
+    top_y := ST_YMax(env_geom);
 
-    topLeft := ST_SetSRID(ST_Point(leftX, topY), 3857);
-    topRight := ST_SetSRID(ST_Point(rightX, topY), 3857);
-    bottomLeft := ST_SetSRID(ST_Point(leftX, bottomY), 3857);
-    bottomRight := ST_SetSRID(ST_Point(rightX, bottomY), 3857);
+    top_left := ST_SetSRID(ST_Point(left_x, top_y), 3857);
+    top_right := ST_SetSRID(ST_Point(right_x, top_y), 3857);
+    bottom_left := ST_SetSRID(ST_Point(left_x, bottom_y), 3857);
+    bottom_right := ST_SetSRID(ST_Point(right_x, bottom_y), 3857);
 
-    env_width := rightX - leftX;
-    env_height := topY - bottomY;
+    env_width := right_x - left_x;
+    env_height := top_y - bottom_y;
     simplify_tolerance := env_width / 4096 * 2;
 
     -- A VERY skinny bounding box stretching from the bottom left corner of the tile
     -- to the interior of Antarctica (roughly -85° Lat), expected to be south of all valid coastline features
-    tile_to_antarctica_bbox := ST_MakeEnvelope(leftX, -20000000, leftX + 0.000000001, bottomY, 3857);
+    tile_to_antarctica_bbox := ST_MakeEnvelope(left_x, -20000000, left_x + 0.000000001, bottom_y, 3857);
 
     RETURN QUERY
     WITH
@@ -103,8 +106,8 @@ AS $$
     -- edge of the tile.
     coastline_open_segments AS (
       SELECT geom,
-        ST_StartPoint(geom) AS startP,
-        ST_EndPoint(geom) AS endP
+        ST_StartPoint(geom) AS start_point,
+        ST_EndPoint(geom) AS end_point
       FROM coastline_merged_segments
       WHERE NOT ST_IsClosed(geom)
     ),
@@ -114,10 +117,10 @@ AS $$
     --
     -- We'll start by creating a single table containing all the startpoints and endpoints of the open segments.
     coastline_open_segment_terminus_points AS (
-      SELECT startP AS p, ST_X(startP) AS x, ST_Y(startP) AS y, 'start' AS placement
+      SELECT start_point AS p, ST_X(start_point) AS x, ST_Y(start_point) AS y, 'start' AS placement
       FROM coastline_open_segments
       UNION ALL
-      SELECT endP AS p, ST_X(endP) AS x, ST_Y(endP) AS y, 'end' AS placement
+      SELECT end_point AS p, ST_X(end_point) AS x, ST_Y(end_point) AS y, 'end' AS placement
       FROM coastline_open_segments
     ),
     -- Order the points in clockwise order around the sides of the tile starting at the bottom left corner.
@@ -125,14 +128,14 @@ AS $$
       SELECT *, ROW_NUMBER() OVER (
       ORDER BY
         CASE
-          WHEN x = leftX THEN
-            (y - bottomY) / env_width
-          WHEN y = topY THEN
-            1 + (x - leftX) / env_height
-          WHEN x = rightX THEN
-            2 + (1 - (y - bottomY) / env_width)
-          ELSE -- assume y = bottomY
-            3 + (1 - (x - leftX) / env_height)
+          WHEN x = left_x THEN
+            (y - bottom_y) / env_width
+          WHEN y = top_y THEN
+            1 + (x - left_x) / env_height
+          WHEN x = right_x THEN
+            2 + (1 - (y - bottom_y) / env_width)
+          ELSE -- assume y = bottom_y
+            3 + (1 - (x - left_x) / env_height)
         END
       ) AS rn
       FROM coastline_open_segment_terminus_points
@@ -164,7 +167,7 @@ AS $$
     ),
     -- Create a single table with one row per (endpoint, startpoint) pair.
     coastline_open_segment_terminus_points_paired AS (
-      SELECT t1.p as endP, t2.p as startP, t1.x as endX, t2.x as startX, t1.y as endY, t2.y as startY
+      SELECT t1.p as end_point, t2.p as start_point, t1.x as end_x, t2.x as start_x, t1.y as end_y, t2.y as start_y
       FROM coastline_open_segment_terminus_points_ordered_w_first_end t1
       JOIN coastline_open_segment_terminus_points_ordered_w_first_end t2 ON t2.rn = t1.rn + 1
       WHERE mod(t1.rn, 2) = 1
@@ -176,11 +179,11 @@ AS $$
     coastline_open_segment_closure_point_arrays AS (
       SELECT
         CASE
-          WHEN startX = leftX THEN
+          WHEN start_x = left_x THEN
             CASE
-              WHEN endX = leftX THEN
+              WHEN end_x = left_x THEN
                 CASE
-                  WHEN endY < startY THEN
+                  WHEN end_y < start_y THEN
                     --   ■             ■
                     --                 
                     --   S             
@@ -188,8 +191,8 @@ AS $$
                     --   E             
                     --                 
                     --   ■             ■
-                    ARRAY[endP, startP]                  
-                  ELSE -- endY > startY
+                    ARRAY[end_point, start_point]                  
+                  ELSE -- end_y > start_y
                     --   ■ → → → → → → ■
                     --   ↑             ↓
                     --   E             ↓
@@ -197,25 +200,25 @@ AS $$
                     --   S             ↓
                     --   ↑             ↓
                     --   ■ ← ← ← ← ← ← ■
-                    ARRAY[endP, topLeft, topRight, bottomRight, bottomLeft, startP]
+                    ARRAY[end_point, top_left, top_right, bottom_right, bottom_left, start_point]
                 END
-              WHEN endX = rightX THEN
+              WHEN end_x = right_x THEN
                 --   ■             ■
                 --                 
                 --   S             E
                 --   ↑             ↓
                 --   ↑             ↓
                 --   ■ ← ← ← ← ← ← ■
-                ARRAY[endP, bottomRight, bottomLeft, startP]
-              WHEN endY = bottomY THEN
+                ARRAY[end_point, bottom_right, bottom_left, start_point]
+              WHEN end_y = bottom_y THEN
                 --   ■             ■
                 --                 
                 --   S             
                 --   ↑              
                 --   ↑              
                 --   ■ ← ← E       ■
-                ARRAY[endP, bottomLeft, startP]
-              WHEN endY = topY THEN
+                ARRAY[end_point, bottom_left, start_point]
+              WHEN end_y = top_y THEN
                 --   ■       E → → ■
                 --                 ↓
                 --                 ↓
@@ -223,12 +226,12 @@ AS $$
                 --   S             ↓
                 --   ↑             ↓
                 --   ■ ← ← ← ← ← ← ■
-                ARRAY[endP, topRight, bottomRight, bottomLeft, startP]
+                ARRAY[end_point, top_right, bottom_right, bottom_left, start_point]
               ELSE NULL
             END
-          WHEN startX = rightX THEN
+          WHEN start_x = right_x THEN
             CASE
-              WHEN endX = leftX THEN
+              WHEN end_x = left_x THEN
                 --   ■ → → → → → → ■
                 --   ↑             ↓
                 --   ↑             ↓
@@ -236,10 +239,10 @@ AS $$
                 --                 
                 --                  
                 --   ■             ■
-                ARRAY[endP, topLeft, topRight, startP]
-              WHEN endX = rightX THEN
+                ARRAY[end_point, top_left, top_right, start_point]
+              WHEN end_x = right_x THEN
                 CASE
-                  WHEN endY < startY THEN
+                  WHEN end_y < start_y THEN
                     --   ■ → → → → → → ■
                     --   ↑             ↓
                     --   ↑             S
@@ -247,8 +250,8 @@ AS $$
                     --   ↑             E
                     --   ↑             ↓
                     --   ■ ← ← ← ← ← ← ■
-                    ARRAY[endP, bottomRight, bottomLeft, topLeft, topRight, startP]
-                  ELSE -- endY > startY
+                    ARRAY[end_point, bottom_right, bottom_left, top_left, top_right, start_point]
+                  ELSE -- end_y > start_y
                     --   ■             ■
                     --                 
                     --                 E             
@@ -256,9 +259,9 @@ AS $$
                     --                 S            
                     --                 
                     --   ■             ■
-                    ARRAY[endP, startP]
+                    ARRAY[end_point, start_point]
                 END
-              WHEN endY = bottomY THEN
+              WHEN end_y = bottom_y THEN
                 --   ■ → → → → → → ■
                 --   ↑             ↓
                 --   ↑             ↓
@@ -266,8 +269,8 @@ AS $$
                 --   ↑             
                 --   ↑              
                 --   ■ ← ← E       ■
-                ARRAY[endP, bottomLeft, topLeft, topRight, startP]
-              WHEN endY = topY THEN
+                ARRAY[end_point, bottom_left, top_left, top_right, start_point]
+              WHEN end_y = top_y THEN
                 --   ■       E → → ■
                 --                 ↓
                 --                 ↓
@@ -275,12 +278,12 @@ AS $$
                 --                 
                 --                  
                 --   ■             ■
-                ARRAY[endP, topRight, startP]
+                ARRAY[end_point, top_right, start_point]
               ELSE NULL
             END
-          WHEN startY = bottomY THEN
+          WHEN start_y = bottom_y THEN
             CASE
-              WHEN endX = leftX THEN
+              WHEN end_x = left_x THEN
                 --   ■ → → → → → → ■
                 --   ↑             ↓
                 --   ↑             ↓
@@ -288,8 +291,8 @@ AS $$
                 --                 ↓
                 --                 ↓
                 --   ■       S ← ← ■
-                ARRAY[endP, topLeft, topRight, bottomRight, startP]
-              WHEN endX = rightX THEN
+                ARRAY[end_point, top_left, top_right, bottom_right, start_point]
+              WHEN end_x = right_x THEN
                 --   ■             ■
                 --   
                 --    
@@ -297,10 +300,10 @@ AS $$
                 --                 ↓
                 --                 ↓
                 --   ■       S ← ← ■
-                ARRAY[endP, bottomRight, startP]
-              WHEN endY = bottomY THEN
+                ARRAY[end_point, bottom_right, start_point]
+              WHEN end_y = bottom_y THEN
                 CASE
-                  WHEN endX < startX THEN
+                  WHEN end_x < start_x THEN
                     --   ■ → → → → → → ■
                     --   ↑             ↓
                     --   ↑             ↓
@@ -308,8 +311,8 @@ AS $$
                     --   ↑             ↓
                     --   ↑             ↓
                     --   ■ ← E     S ← ■
-                    ARRAY[endP, bottomLeft, topLeft, topRight, bottomRight, startP]
-                  ELSE -- endX > startX
+                    ARRAY[end_point, bottom_left, top_left, top_right, bottom_right, start_point]
+                  ELSE -- end_x > start_x
                     --   ■             ■
                     --                  
                     --                  
@@ -317,9 +320,9 @@ AS $$
                     --                 
                     --                  
                     --   ■   S ← ← E   ■
-                    ARRAY[endP, startP]
+                    ARRAY[end_point, start_point]
                 END
-              WHEN endY = topY THEN
+              WHEN end_y = top_y THEN
                 --   ■       E → → ■
                 --                 ↓
                 --                 ↓
@@ -327,12 +330,12 @@ AS $$
                 --                 ↓
                 --                 ↓
                 --   ■       S ← ← ■
-                ARRAY[endP, topRight, bottomRight, startP]
+                ARRAY[end_point, top_right, bottom_right, start_point]
               ELSE NULL
             END
-          WHEN startY = topY THEN
+          WHEN start_y = top_y THEN
             CASE
-              WHEN endX = leftX THEN
+              WHEN end_x = left_x THEN
                 --   ■ → → S       ■
                 --   ↑              
                 --   ↑              
@@ -340,8 +343,8 @@ AS $$
                 --   
                 --   
                 --   ■             ■
-                ARRAY[endP, topLeft, startP]
-              WHEN endX = rightX THEN
+                ARRAY[end_point, top_left, start_point]
+              WHEN end_x = right_x THEN
                 --   ■ → → S       ■
                 --   ↑              
                 --   ↑              
@@ -349,8 +352,8 @@ AS $$
                 --   ↑             ↓
                 --   ↑             ↓
                 --   ■ ← ← ← ← ← ← ■
-                ARRAY[endP, bottomRight, bottomLeft, topLeft, startP]
-              WHEN endY = bottomY THEN
+                ARRAY[end_point, bottom_right, bottom_left, top_left, start_point]
+              WHEN end_y = bottom_y THEN
                 --   ■ → → S       ■
                 --   ↑              
                 --   ↑              
@@ -358,10 +361,10 @@ AS $$
                 --   ↑              
                 --   ↑              
                 --   ■ ← ← E       ■
-                ARRAY[endP, bottomLeft, topLeft, startP]
-              WHEN endY = topY THEN
+                ARRAY[end_point, bottom_left, top_left, start_point]
+              WHEN end_y = top_y THEN
                 CASE
-                WHEN endX < startX THEN
+                WHEN end_x < start_x THEN
                   --   ■   E → → S   ■
                   --                  
                   --                  
@@ -369,8 +372,8 @@ AS $$
                   --                  
                   --                  
                   --   ■             ■
-                  ARRAY[endP, startP]
-                ELSE -- endX > startX
+                  ARRAY[end_point, start_point]
+                ELSE -- end_x > start_x
                   --   ■ → S     E → ■
                   --   ↑             ↓
                   --   ↑             ↓
@@ -378,7 +381,7 @@ AS $$
                   --   ↑             ↓
                   --   ↑             ↓
                   --   ■ ← ← ← ← ← ← ■
-                  ARRAY[endP, topRight, bottomRight, bottomLeft, topLeft, startP]
+                  ARRAY[end_point, top_right, bottom_right, bottom_left, top_left, start_point]
                 END
               ELSE NULL
             END
