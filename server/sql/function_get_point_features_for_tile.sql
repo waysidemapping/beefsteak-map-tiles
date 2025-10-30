@@ -56,11 +56,13 @@ AS $$
           FROM way_no_explicit_line
           WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
             AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
+            AND area_3857 < %4$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
           WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
             AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
+            AND area_3857 < %4$L
       ),
       low_zoom_small_points AS (
         SELECT * FROM small_points
@@ -108,15 +110,13 @@ AS $$
           FROM way_no_explicit_line
           WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
             AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
-            AND area_3857 > %4$L
-            AND area_3857 < %5$L
+            AND area_3857 BETWEEN %4$L AND %5$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
           WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
             AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
-            AND area_3857 > %4$L
-            AND area_3857 < %5$L
+            AND area_3857 BETWEEN %4$L AND %5$L
       ),
       filtered_large_points AS (
         SELECT * FROM large_points
@@ -135,19 +135,19 @@ AS $$
           id,
           -- don't include tags since we're going to infill them on the client 
           '{}'::jsonb AS tags,
-          bbox_centerpoint_on_surface AS geom,
+          label_point AS geom,
           NULL::real AS area_3857,
           'r' AS osm_type,
           ARRAY[id] AS relation_ids
         FROM non_area_relation
-        WHERE bbox_centerpoint_on_surface_z26_tile_x BETWEEN %8$L AND %9$L
-            AND bbox_centerpoint_on_surface_z26_tile_y BETWEEN %10$L AND %11$L
+        WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
           AND (
             (tags @> 'type => route' AND tags ? 'route')
             OR tags @> 'type => waterway'
           )
-          AND bbox_diagonal_length > %6$L
-          AND bbox_diagonal_length < %7$L
+          AND extent > %6$L
+          AND extent < %7$L
           AND %1$L >= 4
       ),
       all_points AS (
@@ -184,13 +184,13 @@ AS $$
           FROM way_no_explicit_line
           WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
             AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
-            AND area_3857 <= %4$L
+            AND area_3857 < %4$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
           WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
             AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
-            AND area_3857 <= %4$L
+            AND area_3857 < %4$L
       ),
       low_zoom_small_points AS (
         SELECT * FROM small_points
@@ -262,15 +262,13 @@ AS $$
           FROM way_no_explicit_line
           WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
             AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
-            AND area_3857 > %4$L
-            AND area_3857 < %5$L
+            AND area_3857 BETWEEN %4$L AND %5$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
           WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
             AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
-            AND area_3857 > %4$L
-            AND area_3857 < %5$L
+            AND area_3857 BETWEEN %4$L AND %5$L
       ),
       filtered_large_points AS (
         SELECT * FROM large_points
@@ -289,19 +287,18 @@ AS $$
           id,
           -- don't include tags since we're going to infill them on the client 
           '{}'::jsonb AS tags,
-          bbox_centerpoint_on_surface AS geom,
+          label_point AS geom,
           NULL::real AS area_3857,
           'r' AS osm_type,
           ARRAY[id] AS relation_ids
         FROM non_area_relation
-        WHERE bbox_centerpoint_on_surface_z26_tile_x BETWEEN %8$L AND %9$L
-          AND bbox_centerpoint_on_surface_z26_tile_y BETWEEN %10$L AND %11$L
+        WHERE label_point_z26_tile_x BETWEEN %8$L AND %9$L
+          AND label_point_z26_tile_y BETWEEN %10$L AND %11$L
+          AND extent BETWEEN %6$L AND %7$L
           AND (
             (tags @> 'type => route' AND tags ? 'route')
             OR tags @> 'type => waterway'
           )
-          AND bbox_diagonal_length > %6$L
-          AND bbox_diagonal_length < %7$L
           AND %1$L >= 4
       ),
       all_points AS (

@@ -37,13 +37,13 @@ local way_no_explicit_area_table = osm2pgsql.define_table({
         { column = 'tags', type = 'hstore', not_null = true },
         { column = 'geom', type = 'linestring', proj = '3857', not_null = true },
         { column = 'is_explicit_line', type = 'boolean', not_null = true },
-        { column = 'bbox_diagonal_length', type = 'real', not_null = true }
+        { column = 'extent', type = 'real', not_null = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
         { column = 'geom', method = 'gist' },
         { column = 'is_explicit_line', method = 'btree' },
-        { column = 'bbox_diagonal_length', method = 'btree' }
+        { column = 'extent', method = 'btree' }
     }
 })
 
@@ -57,7 +57,7 @@ local way_no_explicit_line_table = osm2pgsql.define_table({
         { column = 'geom', type = 'polygon', proj = '3857', not_null = true },
         { column = 'is_explicit_area', type = 'boolean', not_null = true },
         { column = 'area_3857', type = 'real', not_null = true },
-        { column = 'bbox_diagonal_length', type = 'real', not_null = true },
+        { column = 'extent', type = 'real', not_null = true },
         { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
         { column = 'label_point_z26_tile_x', type = 'int', create_only = true },
         { column = 'label_point_z26_tile_y', type = 'int', create_only = true }
@@ -67,7 +67,7 @@ local way_no_explicit_line_table = osm2pgsql.define_table({
         { column = 'geom', method = 'gist' },
         { column = 'is_explicit_area', method = 'btree' },
         { column = 'area_3857', method = 'btree' },
-        { column = 'bbox_diagonal_length', method = 'btree' },
+        { column = 'extent', method = 'btree' },
         { column = 'label_point', method = 'gist' },
         { column = {'label_point_z26_tile_x', 'label_point_z26_tile_y'}, method = 'btree' }
     }
@@ -118,18 +118,20 @@ local non_area_relation_table = osm2pgsql.define_table({
         { column = 'tags', type = 'hstore', not_null = true },
         { column = 'geom', type = 'geometrycollection', proj = '3857' },
         { column = 'bbox', type = 'text', sql_type = 'GEOMETRY(Polygon, 3857)' },
-        { column = 'bbox_centerpoint_on_surface', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
-        { column = 'bbox_centerpoint_on_surface_z26_tile_x', type = 'int', create_only = true },
-        { column = 'bbox_centerpoint_on_surface_z26_tile_y', type = 'int', create_only = true },
-        { column = 'bbox_diagonal_length', type = 'real' }
+        { column = 'extent', type = 'real' },
+        { column = 'label_node_id', type = 'int8' },
+        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
+        { column = 'label_point_z26_tile_x', type = 'int', create_only = true },
+        { column = 'label_point_z26_tile_y', type = 'int', create_only = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
         { column = 'geom', method = 'gist' },
         { column = 'bbox', method = 'gist' },
-        { column = 'bbox_centerpoint_on_surface', method = 'gist' },
-        { column = {'bbox_centerpoint_on_surface_z26_tile_x', 'bbox_centerpoint_on_surface_z26_tile_y'}, method = 'btree' },
-        { column = 'bbox_diagonal_length', method = 'btree' }
+        { column = 'extent', method = 'btree' },
+        { column = 'label_node_id', method = 'btree' },
+        { column = 'label_point', method = 'gist' },
+        { column = {'label_point_z26_tile_x', 'label_point_z26_tile_y'}, method = 'btree' }
     }
 })
 
@@ -207,7 +209,7 @@ function osm2pgsql.process_way(object)
 
     local line_geom = object:as_linestring():transform(3857)
     local minX, minY, maxX, maxY = line_geom:get_bbox()
-    local bbox_diagonal_length = math.sqrt(math.pow(maxX - minX, 2) + math.pow(maxY - minY, 2))
+    local extent = math.sqrt(math.pow(maxX - minX, 2) + math.pow(maxY - minY, 2))
 
     local area_3857 = nil
 
@@ -216,7 +218,7 @@ function osm2pgsql.process_way(object)
             tags = object.tags,
             geom = line_geom,
             is_explicit_line = is_explicit_line,
-            bbox_diagonal_length = bbox_diagonal_length
+            extent = extent
         })
     end
 
@@ -228,7 +230,7 @@ function osm2pgsql.process_way(object)
             geom = area_geom,
             is_explicit_area = is_explicit_area,
             area_3857 = area_3857,
-            bbox_diagonal_length = bbox_diagonal_length
+            extent = extent
         })
     end
 
@@ -281,25 +283,13 @@ function osm2pgsql.process_relation(object)
         end
 
         if multipolygon_relation_types[relType] then
-            local geom = object:as_multipolygon():transform(3857)
-
-            local largestArea = 0
-            local largestPart = nil
-            for g in geom:geometries() do
-                local area = g:area()
-                if area > largestArea then
-                    largestArea = area
-                    largestPart = g
-                end
-            end
-
-            local row = {
+            local geom = object:as_multipolygon():transform(3857) 
+            area_relation_table:insert({
                 tags = object.tags,
-                label_node_id = label_node_id,
                 geom = geom,
-                area_3857 = geom:area()
-            }
-            area_relation_table:insert(row)
+                area_3857 = geom:area(),
+                label_node_id = label_node_id
+            })
         else
             local geom = object:as_geometrycollection():transform(3857)
             local minX, minY, maxX, maxY = geom:get_bbox()
@@ -307,7 +297,8 @@ function osm2pgsql.process_relation(object)
                 tags = object.tags,
                 geom = geom,
                 bbox = format_bbox(minX, minY, maxX, maxY),
-                bbox_diagonal_length = math.sqrt(math.pow(maxX - minX, 2) + math.pow(maxY - minY, 2))
+                extent = math.sqrt(math.pow(maxX - minX, 2) + math.pow(maxY - minY, 2)),
+                label_node_id = label_node_id
             })
         end
 

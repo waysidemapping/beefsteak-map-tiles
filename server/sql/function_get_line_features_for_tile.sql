@@ -34,7 +34,7 @@ AS $$
         WHERE w.geom && %2$L
           AND r.geom && %2$L
           AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.bbox_diagonal_length > %4$L
+          AND r.extent >= %4$L
           AND r.tags @> 'type => route'
           AND r.tags ? 'route'
       ),
@@ -52,7 +52,7 @@ AS $$
           AND r.geom && %2$L
           AND w.tags ? 'waterway'
           AND r.tags @> 'type => waterway'
-          AND r.bbox_diagonal_length > %4$L
+          AND r.extent >= %4$L
       ),
       admin_boundaries AS (
         SELECT w.id,
@@ -119,7 +119,7 @@ AS $$
         SELECT id, tags, geom, is_explicit_line
         FROM way_no_explicit_area
         WHERE geom && %2$L
-          AND bbox_diagonal_length > %3$L
+          AND extent >= %3$L
       ),
       filtered_lines AS (
         SELECT id, tags, geom
@@ -185,7 +185,7 @@ AS $$
         WHERE w.geom && %2$L
           AND r.geom && %2$L
           AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.bbox_diagonal_length > %4$L
+          AND r.extent >= %4$L
           AND r.tags @> 'type => route'
           AND r.tags ? 'route'
       ),
@@ -203,7 +203,7 @@ AS $$
           AND r.geom && %2$L
           AND w.tags ? 'waterway'
           AND r.tags @> 'type => waterway'
-          AND r.bbox_diagonal_length > %4$L
+          AND r.extent >= %4$L
       ),
       admin_boundaries AS (
         SELECT w.id,
