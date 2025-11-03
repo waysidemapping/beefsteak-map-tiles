@@ -273,7 +273,6 @@ else
 
     echo "Running post-import SQL queries..."
     sudo -u postgres psql "$DB_NAME" --file="sql/post_import/area_relation.sql" &
-    sudo -u postgres psql "$DB_NAME" --file="sql/post_import/node.sql" &
     sudo -u postgres psql "$DB_NAME" --file="sql/post_import/non_area_relation.sql" &
     sudo -u postgres psql "$DB_NAME" --file="sql/post_import/way_no_explicit_line.sql" &
     wait

@@ -10,7 +10,7 @@ WITH to_update AS (
 UPDATE area_relation r
 SET
   label_point = centerpoint,
-  label_point_z26_tile_x = floor((ST_X(centerpoint) + 20037508.3427892) / (40075016.6855784 / (1 << 26))),
-  label_point_z26_tile_y = floor((20037508.3427892 - ST_Y(centerpoint)) / (40075016.6855784 / (1 << 26)))
+  label_point_z26_x = floor((ST_X(centerpoint) + 20037508.3427892) / (40075016.6855784 / (1 << 26))),
+  label_point_z26_y = floor((20037508.3427892 - ST_Y(centerpoint)) / (40075016.6855784 / (1 << 26)))
 FROM to_update u
-WHERE r.id = u.id;
+WHERE r.id = u.id AND centerpoint IS NOT NULL;

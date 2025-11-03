@@ -4,13 +4,13 @@ local node_table = osm2pgsql.define_table({
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
         { column = 'geom', type = 'point', proj = '3857', not_null = true },
-        { column = 'z26_tile_x', type = 'int', create_only = true },
-        { column = 'z26_tile_y', type = 'int', create_only = true }
+        { column = 'z26_x', type = 'int', not_null = true },
+        { column = 'z26_y', type = 'int', not_null = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
         { column = 'geom', method = 'gist' },
-        { column = {'z26_tile_x', 'z26_tile_y'}, method = 'btree' }
+        { column = {'z26_x', 'z26_y'}, method = 'btree' }
     }
 })
 
@@ -59,8 +59,8 @@ local way_no_explicit_line_table = osm2pgsql.define_table({
         { column = 'area_3857', type = 'real', not_null = true },
         { column = 'extent', type = 'real', not_null = true },
         { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
-        { column = 'label_point_z26_tile_x', type = 'int', create_only = true },
-        { column = 'label_point_z26_tile_y', type = 'int', create_only = true }
+        { column = 'label_point_z26_x', type = 'int', create_only = true },
+        { column = 'label_point_z26_y', type = 'int', create_only = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
@@ -69,7 +69,7 @@ local way_no_explicit_line_table = osm2pgsql.define_table({
         { column = 'area_3857', method = 'btree' },
         { column = 'extent', method = 'btree' },
         { column = 'label_point', method = 'gist' },
-        { column = {'label_point_z26_tile_x', 'label_point_z26_tile_y'}, method = 'btree' }
+        { column = {'label_point_z26_x', 'label_point_z26_y'}, method = 'btree' }
     }
 })
 
@@ -94,19 +94,21 @@ local area_relation_table = osm2pgsql.define_table({
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
         { column = 'geom', type = 'multipolygon', proj = '3857', not_null = true },
+        { column = 'extent', type = 'real' },
         { column = 'area_3857', type = 'real' },
         { column = 'label_node_id', type = 'int8' },
         { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
-        { column = 'label_point_z26_tile_x', type = 'int', create_only = true },
-        { column = 'label_point_z26_tile_y', type = 'int', create_only = true }
+        { column = 'label_point_z26_x', type = 'int', create_only = true },
+        { column = 'label_point_z26_y', type = 'int', create_only = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
         { column = 'geom', method = 'gist' },
+        { column = 'extent', method = 'btree' },
         { column = 'area_3857', method = 'btree' },
         { column = 'label_node_id', method = 'btree' },
         { column = 'label_point', method = 'gist' },
-        { column = {'label_point_z26_tile_x', 'label_point_z26_tile_y'}, method = 'btree' }
+        { column = {'label_point_z26_x', 'label_point_z26_y'}, method = 'btree' }
     }
 })
 
@@ -121,8 +123,8 @@ local non_area_relation_table = osm2pgsql.define_table({
         { column = 'extent', type = 'real' },
         { column = 'label_node_id', type = 'int8' },
         { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
-        { column = 'label_point_z26_tile_x', type = 'int', create_only = true },
-        { column = 'label_point_z26_tile_y', type = 'int', create_only = true }
+        { column = 'label_point_z26_x', type = 'int', create_only = true },
+        { column = 'label_point_z26_y', type = 'int', create_only = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
@@ -131,7 +133,7 @@ local non_area_relation_table = osm2pgsql.define_table({
         { column = 'extent', method = 'btree' },
         { column = 'label_node_id', method = 'btree' },
         { column = 'label_point', method = 'gist' },
-        { column = {'label_point_z26_tile_x', 'label_point_z26_tile_y'}, method = 'btree' }
+        { column = {'label_point_z26_x', 'label_point_z26_y'}, method = 'btree' }
     }
 })
 
@@ -185,20 +187,38 @@ local multipolygon_relation_types = {
     boundary = true
 }
 
+function z26_tile(x, y)
+    return math.floor((x + 20037508.3427892) / (40075016.6855784 / 2^26)),
+           math.floor((20037508.3427892 - y) / (40075016.6855784 / 2^26))
+end
+
+-- function bbox_z26_tiles(bbox_min_x_3857, bbox_min_y_3857, bbox_max_x_3857, bbox_max_y_3857)
+--     -- The return order of min y and max y are intentionally reversed since 3857 has origin at bottom left
+--     -- and map tiles have origin at top left, i.e. the min y becomes the max y
+--     return math.floor((bbox_min_x_3857 + 20037508.3427892) / (40075016.6855784 / 2^26)),
+--            math.floor((20037508.3427892 - bbox_max_y_3857) / (40075016.6855784 / 2^26)),
+--            math.floor((bbox_max_x_3857 + 20037508.3427892) / (40075016.6855784 / 2^26)),
+--            math.floor((20037508.3427892 - bbox_min_y_3857) / (40075016.6855784 / 2^26))
+-- end
+
 -- Format the bounding box we get from calling get_bbox() on the parameter
 -- in the way needed for the PostgreSQL/PostGIS box2d type.
-function format_bbox(minX, minY, maxX, maxY)
-    if minX == nil then
+function format_bbox(min_x, min_y, max_x, max_y)
+    if min_x == nil then
         return nil
     end
-    return 'POLYGON(('.. tostring(minX) .. ' '.. tostring(minY) .. ', '.. tostring(minX) .. ' '.. tostring(maxY) .. ', '.. tostring(maxX) .. ' '.. tostring(maxY) .. ', '.. tostring(maxX) .. ' '.. tostring(minY) .. ', '.. tostring(minX) .. ' '.. tostring(minY) .. '))'
+    return 'POLYGON(('.. tostring(min_x) .. ' '.. tostring(min_y) .. ', '.. tostring(min_x) .. ' '.. tostring(max_y) .. ', '.. tostring(max_x) .. ' '.. tostring(max_y) .. ', '.. tostring(max_x) .. ' '.. tostring(min_y) .. ', '.. tostring(min_x) .. ' '.. tostring(min_y) .. '))'
 end
 
 -- runs only on tagged nodes or nodes specified by `select_relation_members`
 function osm2pgsql.process_node(object)
+    local geom = object:as_point():transform(3857)
+    local z26_x, z26_y = z26_tile(geom:get_bbox())
     node_table:insert({
         tags = object.tags,
-        geom = object:as_point():transform(3857)
+        geom = geom,
+        z26_x = z26_x,
+        z26_y = z26_y
     })
 end
 
@@ -208,8 +228,8 @@ function osm2pgsql.process_way(object)
     local is_explicit_area = object.is_closed and (object.tags.area == 'yes' or object.tags.building ~= nil)
 
     local line_geom = object:as_linestring():transform(3857)
-    local minX, minY, maxX, maxY = line_geom:get_bbox()
-    local extent = math.sqrt(math.pow(maxX - minX, 2) + math.pow(maxY - minY, 2))
+    local min_x, min_y, max_x, max_y = line_geom:get_bbox()
+    local extent = math.sqrt(math.pow(max_x - min_x, 2) + math.pow(max_y - min_y, 2))
 
     local area_3857 = nil
 
@@ -284,20 +304,22 @@ function osm2pgsql.process_relation(object)
 
         if multipolygon_relation_types[relType] then
             local geom = object:as_multipolygon():transform(3857) 
+            local min_x, min_y, max_x, max_y = geom:get_bbox()
             area_relation_table:insert({
                 tags = object.tags,
                 geom = geom,
+                extent = math.sqrt(math.pow(max_x - min_x, 2) + math.pow(max_y - min_y, 2)),
                 area_3857 = geom:area(),
                 label_node_id = label_node_id
             })
         else
             local geom = object:as_geometrycollection():transform(3857)
-            local minX, minY, maxX, maxY = geom:get_bbox()
+            local min_x, min_y, max_x, max_y = geom:get_bbox()
             non_area_relation_table:insert({
                 tags = object.tags,
                 geom = geom,
-                bbox = format_bbox(minX, minY, maxX, maxY),
-                extent = math.sqrt(math.pow(maxX - minX, 2) + math.pow(maxY - minY, 2)),
+                bbox = format_bbox(min_x, min_y, max_x, max_y),
+                extent = math.sqrt(math.pow(max_x - min_x, 2) + math.pow(max_y - min_y, 2)),
                 label_node_id = label_node_id
             })
         end
