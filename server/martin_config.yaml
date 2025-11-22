@@ -61,7 +61,7 @@ postgres:
       minzoom: 0
 
       # An integer specifying the maximum zoom level. MUST be >= minzoom
-      maxzoom: 22
+      maxzoom: 18
 
       # The maximum extent of available map tiles. Bounds MUST define an area
       # covered by all zoom levels. The bounds are represented in WGS:84
