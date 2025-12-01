@@ -101,7 +101,8 @@ AS $function_body$
       SELECT
         id * 10 + 3 AS feature_id,
         tags,
-        ST_TileEnvelope(z, x, y) AS geom
+        -- we need to pass in a a non-null geometry for relations so just use the tile centerpoint
+        ST_Centroid(ST_TileEnvelope(z, x, y)) AS geom
       FROM tagged_relation_features
     ),
     tiles AS (
