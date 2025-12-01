@@ -50,7 +50,7 @@ AS $$
         JOIN non_area_relation r ON rw.relation_id = r.id
         WHERE w.geom && %2$L
           AND r.geom && %2$L
-          AND w.tags ? 'waterway'
+          AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
           AND r.tags @> 'type => waterway'
           AND r.extent >= %4$L
       ),
@@ -201,7 +201,7 @@ AS $$
         JOIN non_area_relation r ON rw.relation_id = r.id
         WHERE w.geom && %2$L
           AND r.geom && %2$L
-          AND w.tags ? 'waterway'
+          AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
           AND r.tags @> 'type => waterway'
           AND r.extent >= %4$L
       ),
@@ -217,7 +217,6 @@ AS $$
         WHERE w.geom && %2$L
           AND r.geom && %2$L
           AND r.tags @> 'boundary => administrative'
-          AND r.tags ? 'admin_level'
       ),
       combined_lines AS (
           SELECT id, tags, geom, NULL::text AS member_role, NULL::int8 AS relation_id
