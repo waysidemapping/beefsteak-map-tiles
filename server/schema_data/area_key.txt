@@ -111,7 +111,6 @@ kerb
 kitchen
 lamp_mount
 landcover
-landmark
 landuse
 lanes
 layer
