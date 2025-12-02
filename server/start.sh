@@ -231,6 +231,7 @@ else
 
     sudo -u postgres createdb --encoding=UTF8 --owner="$DB_USER" "$DB_NAME"
     sudo -u postgres psql "$DB_NAME" --command='CREATE EXTENSION postgis;'
+    sudo -u postgres psql "$DB_NAME" --command='CREATE EXTENSION hstore;'
 fi
 
 # Load data into database
