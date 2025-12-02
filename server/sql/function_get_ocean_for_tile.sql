@@ -6,12 +6,10 @@
 --
 -- ## What you get
 --
--- This function returns a multipolygon representing the area of ocean in the tile given at
--- `z`/`x`/`y`, or null if the area contains no ocean. The output is suitable for rendering
--- the ocean with a fill but not with an outline since the shape may contain the tile edges.
--- 
--- This is done per-tile with no global preprocessing. Thus, it's compatible with databases
--- receiving frequent updates.
+-- This function returns a multipolygon representing the area of ocean within the tile given at
+-- `z`/`x`/`y`, or null if the tile contains no ocean. This is done per-tile with no global
+-- preprocessing. Thus, it's compatible with databases receiving frequent updates, e.g. minutely
+-- from OpenStreetMap.
 --
 -- ## Prerequisites
 --
@@ -33,12 +31,21 @@
 -- * If the tile contains no coastlines, get all the coastline segments south of the tile:
 --     * If the northernmost segment is running east-to-west then we're in the ocean, return the tile envelope.
 --     * Else we're on land, return null.
+--     * If there are no coastlines south of the tile, assume we're in Antarctica (which is
+--       considered land), return null.
 --
 -- ## Caveats
 -- 
--- * If your database contains incomplete data, certain tiles containing no coastlines will not render correctly.
--- 
--- 
+-- * If your database contains incomplete data (less than global), certain tiles containing no
+--   coastlines will not render correctly. This is unavoidable.
+--     * If your coastline data contains unclosed segments, tiles overlapping the endpoints will
+--       output unexpected ocean geometry.
+--     * If there are coastlines missing from your database south of a tile with no coastlines,
+--       the tile will sometimes appear as land when it should be ocean and vice versa.
+-- * The output is suitable for rendering with a fill but not an outline since the shape may
+--   contain the tile edges. If you need to render outlines, simply include the coastline features
+--   in your vector tiles directly.
+--
 
 CREATE OR REPLACE FUNCTION function_get_ocean_for_tile(_z integer, _x integer, _y integer)
 RETURNS TABLE (_geom geometry(multipolygon, 3857))
