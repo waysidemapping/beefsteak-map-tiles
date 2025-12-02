@@ -23,57 +23,50 @@ AS $$
       WITH
       routes AS (
         SELECT
-          w.id,
-          w.tags,
-          w.geom,
-          rw.member_role,
-          rw.relation_id
-        FROM way_no_explicit_area w
-        JOIN way_relation_member rw ON w.id = rw.member_id
-        JOIN non_area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && %2$L
-          AND r.geom && %2$L
-          AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.extent >= %4$L
-          AND r.tags @> 'type => route'
-          AND r.tags ? 'route'
+          way_id AS id,
+          way_tags AS tags,
+          way_geom AS geom,
+          member_role,
+          relation_id
+        FROM way_relation_combined
+        WHERE way_geom && %2$L
+          AND way_tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
+          AND relation_extent >= %4$L
+          AND relation_tags @> 'type => route'
+          AND relation_tags ? 'route'
       ),
       waterways AS (
         SELECT
-          w.id,
-          w.tags,
-          w.geom,
-          rw.member_role,
-          rw.relation_id
-        FROM way_no_explicit_area w
-        JOIN way_relation_member rw ON w.id = rw.member_id AND rw.member_role = 'main_stream'
-        JOIN non_area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && %2$L
-          AND r.geom && %2$L
-          AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.tags @> 'type => waterway'
-          AND r.extent >= %4$L
+          way_id AS id,
+          way_tags AS tags,
+          way_geom AS geom,
+          member_role,
+          relation_id
+        FROM way_relation_combined
+        WHERE way_geom && %2$L
+          AND member_role = 'main_stream'
+          AND way_tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
+          AND relation_tags @> 'type => waterway'
+          AND relation_extent >= %4$L
       ),
       admin_boundaries AS (
-        SELECT w.id,
-          w.tags,
-          w.geom,
-          rw.member_role,
-          rw.relation_id
-        FROM way w
-        JOIN way_relation_member rw ON w.id = rw.member_id
-        JOIN area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && %2$L
-          AND r.geom && %2$L
-          AND r.tags @> 'boundary => administrative'
+        SELECT
+          way_id AS id,
+          way_tags AS tags,
+          way_geom AS geom,
+          member_role,
+          relation_id
+        FROM way_relation_combined
+        WHERE way_geom && %2$L
+          AND relation_tags @> 'boundary => administrative'
           AND (
-            r.tags @> 'admin_level => 1'
-            OR r.tags @> 'admin_level => 2'
-            OR r.tags @> 'admin_level => 3'
-            OR r.tags @> 'admin_level => 4'
-            OR r.tags @> 'admin_level => 5'
+            relation_tags @> 'admin_level => 1'
+            OR relation_tags @> 'admin_level => 2'
+            OR relation_tags @> 'admin_level => 3'
+            OR relation_tags @> 'admin_level => 4'
+            OR relation_tags @> 'admin_level => 5'
             OR (
-              %1$L >= 6 AND r.tags @> 'admin_level => 6'
+              %1$L >= 6 AND relation_tags @> 'admin_level => 6'
             )
           )
       ),
@@ -89,19 +82,26 @@ AS $$
       ),
       collapsed AS (
         SELECT
-          slice(ANY_VALUE(tags), ARRAY[{{LOW_ZOOM_LINE_KEY_LIST}}])::jsonb
-            || COALESCE(jsonb_object_agg('m.' || relation_id::text, member_role) FILTER (WHERE relation_id IS NOT NULL), '{}'::jsonb) AS tags,
+          ANY_VALUE(tags) AS tags,
+          COALESCE(jsonb_object_agg('m.' || relation_id::text, member_role) FILTER (WHERE relation_id IS NOT NULL), '{}'::jsonb) AS membership_attributes,
           ANY_VALUE(geom) AS geom,
           ARRAY_AGG(relation_id) AS relation_ids
         FROM combined_lines
         GROUP BY id
+      ),
+      tagged AS (
+        SELECT
+          slice(tags, ARRAY[{{LOW_ZOOM_LINE_KEY_LIST}}])::jsonb || membership_attributes AS tags,
+          geom,
+          relation_ids
+        FROM collapsed
       ),
       grouped_and_simplified AS (
         SELECT
           tags,
           ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %5$L, true) AS geom,
           ANY_VALUE(relation_ids) AS relation_ids
-        FROM collapsed
+        FROM tagged
         GROUP BY tags
       )
       SELECT
@@ -174,49 +174,41 @@ AS $$
       ),
       routes AS (
         SELECT
-          w.id,
-          w.tags,
-          w.geom,
-          rw.member_role,
-          rw.relation_id
-        FROM way_no_explicit_area w
-        JOIN way_relation_member rw ON w.id = rw.member_id
-        JOIN non_area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && %2$L
-          AND r.geom && %2$L
-          AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.extent >= %4$L
-          AND r.tags @> 'type => route'
-          AND r.tags ? 'route'
+          way_id AS id,
+          way_tags AS tags,
+          way_geom AS geom,
+          member_role,
+          relation_id
+        FROM way_relation_combined
+        WHERE way_geom && %2$L
+          AND way_tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
+          AND relation_extent >= %4$L
+          AND relation_tags @> 'type => route'
+          AND relation_tags ? 'route'
       ),
       waterways AS (
         SELECT
-          w.id,
-          w.tags,
-          w.geom,
-          rw.member_role,
-          rw.relation_id
-        FROM way_no_explicit_area w
-        JOIN way_relation_member rw ON w.id = rw.member_id
-        JOIN non_area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && %2$L
-          AND r.geom && %2$L
-          AND w.tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
-          AND r.tags @> 'type => waterway'
-          AND r.extent >= %4$L
+          way_id AS id,
+          way_tags AS tags,
+          way_geom AS geom,
+          member_role,
+          relation_id
+        FROM way_relation_combined
+        WHERE way_geom && %2$L
+          AND way_tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'man_made', 'natural', 'power', 'railway', 'route', 'telecom', 'waterway']
+          AND relation_tags @> 'type => waterway'
+          AND relation_extent >= %4$L
       ),
       admin_boundaries AS (
-        SELECT w.id,
-          w.tags,
-          w.geom,
-          rw.member_role,
-          rw.relation_id
-        FROM way w
-        JOIN way_relation_member rw ON w.id = rw.member_id
-        JOIN area_relation r ON rw.relation_id = r.id
-        WHERE w.geom && %2$L
-          AND r.geom && %2$L
-          AND r.tags @> 'boundary => administrative'
+        SELECT
+          way_id AS id,
+          way_tags AS tags,
+          way_geom AS geom,
+          member_role,
+          relation_id
+        FROM way_relation_combined
+        WHERE way_geom && %2$L
+          AND relation_tags @> 'boundary => administrative'
       ),
       combined_lines AS (
           SELECT id, tags, geom, NULL::text AS member_role, NULL::int8 AS relation_id

@@ -272,10 +272,12 @@ else
         "$PLANET_FILE"
 
     echo "Running post-import SQL queries..."
-    sudo -u postgres psql "$DB_NAME" --file="sql/post_import/area_relation.sql" &
-    sudo -u postgres psql "$DB_NAME" --file="sql/post_import/non_area_relation.sql" &
-    sudo -u postgres psql "$DB_NAME" --file="sql/post_import/way_no_explicit_line.sql" &
+    sudo -u "$DB_USER" psql "$DB_NAME" --file="sql/post_init_or_update/area_relation.sql" &
+    sudo -u "$DB_USER" psql "$DB_NAME" --file="sql/post_init_or_update/non_area_relation.sql" &
+    sudo -u "$DB_USER" psql "$DB_NAME" --file="sql/post_init_or_update/way_no_explicit_line.sql" &
     wait
+
+    sudo -u "$DB_USER" psql "$DB_NAME" --file="sql/post_init/create_materialized_views.sql"
 fi
 
 # Reinstall functions every time in case something changed.
