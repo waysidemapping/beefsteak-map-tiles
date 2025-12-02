@@ -35,10 +35,9 @@ export async function heirloomProtocolFunction(request) {
                 const relation = relationsById[id];
 
                 if (relation) {
-                  feature.properties = {
-                    ...feature.properties,
-                    ...relation.properties
-                  };
+                  for (const prop in relation.properties) {
+                    feature.properties[prop] = relation.properties[prop];
+                  }
                 }
 
               } else {
@@ -52,18 +51,15 @@ export async function heirloomProtocolFunction(request) {
                   .filter(Boolean);
 
                 if (linkedRelations.length) {
-                  feature.properties = {
-                    ...feature.properties,
-                    ...Object.fromEntries(
-                      Object.entries(
-                        allRelationKeys.reduce((acc, key) => {
-                          return {...acc, ['r.' + key]: '┃' + linkedRelations.map(rel => rel.properties[key]).join('┃') + '┃'};
-                        }, {})
-                      )
-                      // remove relation properties that don't have any values
-                      .filter(([_, v]) => v.length > linkedRelations.length + 1)
-                    )
-                  };
+                  for (const key of allRelationKeys) {
+                    const values = linkedRelations.map(rel => rel.properties[key]);
+                    const joined = '┃' + values.join('┃') + '┃';
+
+                    // only add the property if at least one of the relations has a value
+                    if (joined.length > linkedRelations.length + 1) {
+                      feature.properties['r.' + key] = joined;
+                    }
+                  }
                 }
               }
               return feature;
