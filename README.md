@@ -20,10 +20,6 @@ Heirloom is a special cultivar of [OpenStreetMap](https://www.openstreetmap.org/
 - 🧐 **Built for a single renderer**: Heirloom tiles are tuned to look visually correct rendered as Web Mercator in [MapLibre](https://maplibre.org). They are not tested for other use cases. Data may not always be topologically correct.
 - 🏝️ **No planet-level processing**: Database-wide functions, such as network analysis or coastline aggregation, are not performant for minutely-updated tiles. All processing in Heirloom is done per-feature at import or per-tile at render.
 
-### 🧺 What's inside
-
-
-
 ### 🥫 Alternatives
 
 Heirloom map tiles aren't for everyone. If you don't need Heirloom's power and complexity, consider working with something simpler.
@@ -33,11 +29,7 @@ Heirloom map tiles aren't for everyone. If you don't need Heirloom's power and c
 - [OpenMapTiles](https://openmaptiles.org/): If you just want an out-of-the-box basemap solution with broad support, you probably want OpenMapTiles. There are a few free tileservers providing tiles in this format, mainly the [OSM US Tileservice](https://tiles.openstreetmap.us/) and [OpenFreeMap](https://openfreemap.org/).
 - [Shortbread](https://shortbread-tiles.org/): If you're looking for a lean, general-purpose tile schema supported on openstreetmap.org, try Shortbread. Shortbread also supports minutely updates.
 
-## Deploying an Heirloom tileserver
-
-
-
-## Using Heirloom tiles
+## 🍴 Using Heirloom tiles
 
 ### Schema
 
@@ -105,7 +97,7 @@ Alternatively, you can style by attribute within the property itself:
 
 Using these techniques, you can create expressive, detailed maps with the many OSM tags included in Heirloom tiles.
 
-## Developing Heirloom
+## 🧑‍🍳 Developing Heirloom
 
 ### Stack
 
@@ -156,7 +148,7 @@ docker exec -i heirloom-dev-container sudo -u postgres psql -U postgres -d osm -
 
 Minutely tiles can't be cached for very long, so lightning-fast renders are critical. Heirloom has a highly optimized SQL query that goes without luxuries like recursion, `UNION`, `ST_SimplifyPreserveTopology`, and `ST_Union`.
 
-## FAQ
+## ℹ️ FAQ
 
 ### What's with the name?
 
