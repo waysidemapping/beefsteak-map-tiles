@@ -25,11 +25,6 @@ MARTIN_VERSION="0.19.3"
 
 [[ "$ARCHITECTURE" == "x86_64" || "$ARCHITECTURE" == "aarch64" ]] && echo "Architecture: $ARCHITECTURE" || { echo "Unsupported architecture: $ARCHITECTURE"; exit 1; }
 
-# Create helper directory
-if [ ! -d "$PERSISTENT_DIR" ]; then
-    mkdir -p "$PERSISTENT_DIR"
-fi
-
 # Create linux user matching PG role: needed for pgsql peer authentication 
 if id "$DB_USER" &>/dev/null; then
     echo "User '$DB_USER' already exists."
@@ -37,6 +32,16 @@ else
     echo "Creating user '$DB_USER'..."
     sudo useradd -m "$DB_USER"
     echo "User '$DB_USER' created."
+fi
+
+# Create helper directory
+if [ ! -d "$PERSISTENT_DIR" ]; then
+    mkdir -p "$PERSISTENT_DIR"
+fi
+
+# Make our user the owner of the helper directory
+if [ "$(stat -c %U "$PERSISTENT_DIR")" != "$DB_USER" ]; then
+    sudo chown "$DB_USER":"$DB_USER" "$PERSISTENT_DIR"
 fi
 
 # We need to install all of our prerequisite commands here instead of in the Docker image since

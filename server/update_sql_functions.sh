@@ -2,7 +2,8 @@
 
 # set -x # echo on
 
-APP_DIR="/usr/src/app"
+# Directory of this current script
+APP_DIR="$(dirname "$0")"
 DB_NAME="osm"
 
 # We're going to fetch the OSM key information from text files and insert it into the SQL functions
