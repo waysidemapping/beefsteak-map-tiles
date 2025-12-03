@@ -2,6 +2,9 @@
 
 set -x # echo on
 
+# Directory of this script
+APP_DIR="$(dirname "$0")"
+
 ARCHITECTURE=$(uname -m)
 PERSISTENT_DIR="/var/lib/app"
 
@@ -16,11 +19,11 @@ DB_USER="osmuser"
 TABLE_PREFIX="planet_osm"
 OSM2PGSQL_VERSION="2.2.0"
 OSM2PGSQL_DIR="/usr/local/osm2pgsql"
-LUA_STYLE_FILE="osm2pgsql_style_config.lua"
+LUA_STYLE_FILE="$APP_DIR/lua/osm2pgsql_style_config.lua"
 
 FLAT_NODES_FILE="$PERSISTENT_DIR/flatnodes"
 
-MARTIN_CONFIG_FILE="martin_config.yaml"
+MARTIN_CONFIG_FILE="$APP_DIR/martin_config.yaml"
 MARTIN_VERSION="0.19.3"
 
 [[ "$ARCHITECTURE" == "x86_64" || "$ARCHITECTURE" == "aarch64" ]] && echo "Architecture: $ARCHITECTURE" || { echo "Unsupported architecture: $ARCHITECTURE"; exit 1; }
