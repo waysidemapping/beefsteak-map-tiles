@@ -2,11 +2,13 @@ admin_level
 boundary
 brand
 colour
+from
 informal
 name
 network
 operator
 ref
 route
+to
 type
 wikidata

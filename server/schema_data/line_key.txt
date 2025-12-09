@@ -32,6 +32,7 @@ foot
 footway
 ford
 frequency
+from
 gauge
 golf
 golf_cart
@@ -122,6 +123,7 @@ tactile_paving
 taxi
 telecom
 tidal
+to
 toll
 tracktype
 traffic_calming

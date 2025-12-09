@@ -1,8 +1,10 @@
 bridge:name:
+from:
 lock_name:
 mtb:name:
 name:
 oneway:
 rapids:name:
+to:
 tunnel:name:
 waterbody:name:
