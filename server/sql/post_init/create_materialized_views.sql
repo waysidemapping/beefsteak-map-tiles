@@ -1,3 +1,5 @@
+
+SET work_mem = '512MB';
 CREATE MATERIALIZED VIEW way_relation_combined AS
 WITH rel AS (
   -- the area_ and non_area_ relation tables form a complete set of the relations we care about
@@ -29,3 +31,4 @@ CREATE INDEX ON way_relation_combined USING btree (relation_extent);
 CREATE INDEX ON way_relation_combined USING gin (way_tags);
 CREATE INDEX ON way_relation_combined USING gin (relation_tags);
 CREATE INDEX ON way_relation_combined USING gist (way_geom);
+RESET work_mem;

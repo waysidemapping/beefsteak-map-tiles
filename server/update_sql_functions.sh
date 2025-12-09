@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # set -x # echo on
+set -euo pipefail
 
 # Directory of this current script
 APP_DIR="$(dirname "$0")"

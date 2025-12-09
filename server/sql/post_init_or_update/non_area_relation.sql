@@ -1,4 +1,5 @@
 
+SET work_mem = '512MB';
 WITH to_update AS (
   SELECT
     r.id,
@@ -14,3 +15,4 @@ SET
   label_point_z26_y = floor((20037508.3427892 - ST_Y(centerpoint)) / (40075016.6855784 / (1 << 26)))
 FROM to_update u
 WHERE r.id = u.id AND centerpoint IS NOT NULL;
+RESET work_mem;

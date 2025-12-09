@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -x # echo on
+set -euo pipefail
 
 # Directory of this script
 APP_DIR="$(dirname "$0")"
@@ -27,6 +28,9 @@ MARTIN_CONFIG_FILE="$APP_DIR/martin_config.yaml"
 MARTIN_VERSION="0.19.3"
 
 [[ "$ARCHITECTURE" == "x86_64" || "$ARCHITECTURE" == "aarch64" ]] && echo "Architecture: $ARCHITECTURE" || { echo "Unsupported architecture: $ARCHITECTURE"; exit 1; }
+
+NUM_CORES=$(nproc)
+MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 
 # Create linux user matching PG role: needed for pgsql peer authentication 
 if id "$DB_USER" &>/dev/null; then
@@ -155,74 +159,15 @@ else
         postgresql-contrib-$PG_VERSION \
         postgresql-$PG_VERSION-postgis-$POSTGIS_MAJOR_VERSION \
         postgresql-$PG_VERSION-postgis-$POSTGIS_MAJOR_VERSION-scripts
-
-    # Path to postgresql.conf based on version
-    PG_CONF_PATH="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
-
-    # Ensure the file exists
-    if [ ! -f "$PG_CONF_PATH" ]; then
-        echo "postgresql.conf not found at $PG_CONF_PATH"
-        exit 1
-    fi
-
-    # Tune postgres config based on osm2pgsql recommendations: https://osm2pgsql.org/doc/manual.html#tuning-the-postgresql-server
-    sudo sed -i "s/^#*shared_buffers.*/shared_buffers = 1GB/" "$PG_CONF_PATH" || echo "shared_buffers = 1GB" | sudo tee -a "$PG_CONF_PATH"
-    sudo sed -i "s/^#*work_mem.*/work_mem = 50MB/" "$PG_CONF_PATH" || echo "work_mem = 50MB" | sudo tee -a "$PG_CONF_PATH"
-    sudo sed -i "s/^#*maintenance_work_mem.*/maintenance_work_mem = 10GB/" "$PG_CONF_PATH" || echo "maintenance_work_mem = 10GB" | sudo tee -a "$PG_CONF_PATH"
-    sudo sed -i "s/^#*autovacuum_work_mem.*/autovacuum_work_mem = 2GB/" "$PG_CONF_PATH" || echo "autovacuum_work_mem = 2GB" | sudo tee -a "$PG_CONF_PATH"
-    sudo sed -i "s/^#*wal_level.*/wal_level = minimal/" "$PG_CONF_PATH" || echo "wal_level = minimal" | sudo tee -a "$PG_CONF_PATH"
-    sudo sed -i "s/^#*checkpoint_timeout.*/checkpoint_timeout = 60min/" "$PG_CONF_PATH" || echo "checkpoint_timeout = 60min" | sudo tee -a "$PG_CONF_PATH"
-    sudo sed -i "s/^#*max_wal_size.*/max_wal_size = 10GB/" "$PG_CONF_PATH" || echo "max_wal_size = 10GB" | sudo tee -a "$PG_CONF_PATH"
-    sudo sed -i "s/^#*checkpoint_completion_target.*/checkpoint_completion_target = 0.9/" "$PG_CONF_PATH" || echo "checkpoint_completion_target = 0.9" | sudo tee -a "$PG_CONF_PATH"
-    sudo sed -i "s/^#*max_wal_senders.*/max_wal_senders = 0/" "$PG_CONF_PATH" || echo "max_wal_senders = 0" | sudo tee -a "$PG_CONF_PATH"
-    sudo sed -i "s/^#*random_page_cost.*/random_page_cost = 1.0/" "$PG_CONF_PATH" || echo "random_page_cost = 1.0" | sudo tee -a "$PG_CONF_PATH"
-
-    echo "Verifying PostgreSQL config parameters in $PG_CONF_PATH..."
-
-    if grep -Eq "^\s*shared_buffers\s*=\s*1GB" "$PG_CONF_PATH" && \
-        grep -Eq "^\s*work_mem\s*=\s*50MB" "$PG_CONF_PATH" && \
-        grep -Eq "^\s*maintenance_work_mem\s*=\s*10GB" "$PG_CONF_PATH" && \
-        grep -Eq "^\s*autovacuum_work_mem\s*=\s*2GB" "$PG_CONF_PATH" && \
-        grep -Eq "^\s*wal_level\s*=\s*minimal" "$PG_CONF_PATH" && \
-        grep -Eq "^\s*checkpoint_timeout\s*=\s*60min" "$PG_CONF_PATH" && \
-        grep -Eq "^\s*max_wal_size\s*=\s*10GB" "$PG_CONF_PATH" && \
-        grep -Eq "^\s*checkpoint_completion_target\s*=\s*0.9" "$PG_CONF_PATH" && \
-        grep -Eq "^\s*max_wal_senders\s*=\s*0" "$PG_CONF_PATH" && \
-        grep -Eq "^\s*random_page_cost\s*=\s*1.0" "$PG_CONF_PATH"; then
-        echo "All parameters are set correctly."
-    else
-        echo "One or more parameters are missing or incorrect in $PG_CONF_PATH."
-        exit 1
-    fi
-
 fi
 
 # Start PostgreSQL
-if pg_isready > /dev/null 2>&1; then
-    echo "PostgreSQL is running and responsive."
+if pg_isready > /dev/null 2>&1 && pgrep -x "postgres" > /dev/null; then
+    sudo service postgresql restart
 else
-    echo "PostgreSQL is not responding. Attempting to start or restart..."
-
-    # Check if the service is running but unresponsive
-    if pgrep -x "postgres" > /dev/null; then
-        echo "PostgreSQL process is running but not ready. Restarting..."
-        sudo service postgresql restart
-    else
-        echo "PostgreSQL is not running. Starting..."
-        sudo service postgresql start
-    fi
-
-    # Give it a moment to initialize
-    sleep 3
-
-    # Final check
-    if pg_isready > /dev/null 2>&1; then
-        echo "PostgreSQL is now running and responsive."
-    else
-        echo "Failed to start or restart PostgreSQL."
-        exit 1
-    fi
+    sudo service postgresql start
 fi
+until pg_isready > /dev/null 2>&1; do sleep 1; done
 
 # Setup database
 if sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
@@ -248,6 +193,71 @@ TABLES_EXISTING=$(sudo -u postgres psql -d "$DB_NAME" -tAc \
 if [[ "$TABLES_EXISTING" -gt 0 ]]; then
     echo "osm2pgsql import detected — $TABLES_EXISTING tables found with prefix '${TABLE_PREFIX}_'."
 else
+
+    # Path to postgresql.conf based on version
+    PG_CONF_PATH="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
+
+    # Ensure the file exists
+    if [ ! -f "$PG_CONF_PATH" ]; then
+        echo "postgresql.conf not found at $PG_CONF_PATH"
+        exit 1
+    fi
+
+    # Set import params dynamically based on available cores and memory
+    if [ "$NUM_CORES" -ge 32 ]; then
+        MAX_PARALLEL_WORKERS=64
+        MAX_PARALLEL_PER_GATHER=16
+    elif [ "$NUM_CORES" -ge 16 ]; then
+        MAX_PARALLEL_WORKERS=32
+        MAX_PARALLEL_PER_GATHER=8
+    elif [ "$NUM_CORES" -ge 8 ]; then
+        MAX_PARALLEL_WORKERS=16
+        MAX_PARALLEL_PER_GATHER=4
+    else
+        MAX_PARALLEL_WORKERS=$NUM_CORES
+        MAX_PARALLEL_PER_GATHER=$(( NUM_CORES / 2 ))
+        # Ensure at least 1
+        [ "$MAX_PARALLEL_PER_GATHER" -lt 1 ] && MAX_PARALLEL_PER_GATHER=1
+    fi
+    SHARED_BUFFERS_MB=$(( MEM_KB * 25 / 100 / 1024 ))       # 25% RAM
+    MAINTENANCE_MB=$(( MEM_KB * 60 / 100 / 1024 ))          # 60% RAM
+    AUTOVAC_MB=$(( MEM_KB * 25 / 100 / 1024 ))              # 25% RAM
+
+    declare -A PARAMS=(
+        ["shared_buffers"]="${SHARED_BUFFERS_MB}MB"
+        ["work_mem"]="64MB"
+        ["maintenance_work_mem"]="${MAINTENANCE_MB}MB"
+        ["autovacuum_work_mem"]="${AUTOVAC_MB}MB"
+        ["wal_level"]="minimal"
+        ["synchronous_commit"]="off"
+        ["full_page_writes"]="off"
+        ["checkpoint_timeout"]="60min"
+        ["max_wal_size"]="100GB"
+        ["checkpoint_completion_target"]="0.9"
+        ["max_parallel_workers"]="$MAX_PARALLEL_WORKERS"
+        ["max_parallel_workers_per_gather"]="$MAX_PARALLEL_PER_GATHER"
+        ["max_wal_senders"]="0"
+        ["random_page_cost"]="1.0"
+        ["effective_io_concurrency"]="8"
+        ["temp_buffers"]="64MB"
+        ["autovacuum"]="off"
+    )
+    for key in "${!PARAMS[@]}"; do
+        value="${PARAMS[$key]}"
+        # Check if value is already as desired
+        if grep -Eq "^[[:space:]]*${key}[[:space:]]*=[[:space:]]*${value}\b" "$PG_CONF_PATH"; then
+            continue
+        fi
+        # Remove any existing lines for this parameter (commented or active)
+        sudo sed -i "/^[[:space:]]*#\?[[:space:]]*${key}[[:space:]]*=/d" "$PG_CONF_PATH"
+        # Append desired parameter
+        echo "${key} = ${value}" | sudo tee -a "$PG_CONF_PATH" >/dev/null
+    done
+
+    # Restart postgres so our config file changes take effect
+    sudo service postgresql restart
+    until pg_isready > /dev/null 2>&1; do sleep 1; done
+
     # Remove stale flat nodes cache file, if any
     rm -f -- "$FLAT_NODES_FILE"
 
@@ -284,8 +294,64 @@ else
     sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init_or_update/non_area_relation.sql" &
     sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init_or_update/way_no_explicit_line.sql" &
     wait
-
     sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init/create_materialized_views.sql"
+
+    # We need to manually do this since we turned off autovacuum for the import
+    sudo -u "$DB_USER" psql "$DB_NAME" --command="VACUUM ANALYZE;"
+
+    # Set tileserving params dynamically based on available cores and memory
+    if [ "$NUM_CORES" -ge 32 ]; then
+        MAX_PARALLEL_WORKERS=16
+        MAX_PARALLEL_PER_GATHER=4
+    elif [ "$NUM_CORES" -ge 16 ]; then
+        MAX_PARALLEL_WORKERS=8
+        MAX_PARALLEL_PER_GATHER=2
+    elif [ "$NUM_CORES" -ge 8 ]; then
+        MAX_PARALLEL_WORKERS=4
+        MAX_PARALLEL_PER_GATHER=1
+    else
+        MAX_PARALLEL_WORKERS=$NUM_CORES
+        MAX_PARALLEL_PER_GATHER=$(( NUM_CORES / 2 ))
+        [ "$MAX_PARALLEL_PER_GATHER" -lt 1 ] && MAX_PARALLEL_PER_GATHER=1
+    fi
+    SHARED_BUFFERS_MB=$(( MEM_KB * 25 / 100 / 1024 ))   # 25% RAM
+    MAINTENANCE_MB=$(( MEM_KB * 5 / 100 / 1024 ))       # 5% RAM
+    AUTOVAC_MB=$(( MEM_KB * 2 / 100 / 1024 ))           # 2% RAM
+
+    declare -A PARAMS=(
+        ["shared_buffers"]="${SHARED_BUFFERS_MB}MB"
+        ["work_mem"]="16MB"                           
+        ["maintenance_work_mem"]="${MAINTENANCE_MB}MB"
+        ["autovacuum_work_mem"]="${AUTOVAC_MB}MB"
+        ["wal_level"]="replica"
+        ["synchronous_commit"]="on"
+        ["full_page_writes"]="on"
+        ["checkpoint_timeout"]="10min"
+        ["max_wal_size"]="4GB"
+        ["checkpoint_completion_target"]="0.7"
+        ["max_parallel_workers"]="$MAX_PARALLEL_WORKERS"
+        ["max_parallel_workers_per_gather"]="$MAX_PARALLEL_PER_GATHER"
+        ["max_wal_senders"]="5"
+        ["random_page_cost"]="1.0"
+        ["effective_io_concurrency"]="4"
+        ["temp_buffers"]="16MB"
+        ["autovacuum"]="on"
+    )
+    for key in "${!PARAMS[@]}"; do
+        value="${PARAMS[$key]}"
+        # Check if value is already as desired
+        if grep -Eq "^[[:space:]]*${key}[[:space:]]*=[[:space:]]*${value}\b" "$PG_CONF_PATH"; then
+            continue
+        fi
+        # Remove any existing lines for this parameter (commented or active)
+        sudo sed -i "/^[[:space:]]*#\?[[:space:]]*${key}[[:space:]]*=/d" "$PG_CONF_PATH"
+        # Append desired parameter
+        echo "${key} = ${value}" | sudo tee -a "$PG_CONF_PATH" >/dev/null
+    done
+
+    # Restart postgres so our config file changes take effect
+    sudo service postgresql restart
+    until pg_isready > /dev/null 2>&1; do sleep 1; done
 fi
 
 # Reinstall functions every time in case something changed.
