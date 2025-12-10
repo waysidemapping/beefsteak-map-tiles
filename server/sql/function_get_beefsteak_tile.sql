@@ -1,6 +1,6 @@
 --
 -- © 2025 Quincy Morgan
--- Licensed MIT: https://github.com/waysidemapping/beefsteak-map-tiles/blob/main/LICENSE.md
+-- Licensed MIT: https://github.com/waysidemapping/beefsteak-map-tiles/blob/main/LICENSE
 --
 CREATE OR REPLACE FUNCTION function_get_beefsteak_tile(z integer, x integer, y integer)
 RETURNS bytea
