@@ -14,6 +14,7 @@ PLANET_URL="https://planet.openstreetmap.org/pbf/planet-latest.osm.pbf"
 # to load an extract, replace the above URL with something like "https://download.geofabrik.de/north-america/us/california-latest.osm.pbf"
 
 PG_VERSION="18"
+PG_CONF_PATH="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
 POSTGIS_MAJOR_VERSION="3"
 DB_NAME="osm"
 DB_USER="osmuser"
@@ -22,6 +23,7 @@ OSM2PGSQL_VERSION="2.2.0"
 OSM2PGSQL_DIR="/usr/local/osm2pgsql"
 LUA_STYLE_FILE="$APP_DIR/lua/osm2pgsql_style_config.lua"
 
+PG_DATA_DIR="$PERSISTENT_DIR/pg_data"
 FLAT_NODES_FILE="$PERSISTENT_DIR/flatnodes"
 
 MARTIN_CONFIG_FILE="$APP_DIR/martin_config.yaml"
@@ -161,6 +163,32 @@ else
         postgresql-$PG_VERSION-postgis-$POSTGIS_MAJOR_VERSION-scripts
 fi
 
+# Ensure dir exists
+if [ ! -d "$PG_DATA_DIR" ]; then
+    mkdir -p "$PG_DATA_DIR"
+fi
+
+if [ "$(stat -c %U "$PG_DATA_DIR")" != "postgres" ]; then
+    sudo chown postgres:postgres "$PG_DATA_DIR"
+fi
+
+if [ ! -f "$PG_DATA_DIR/PG_VERSION" ]; then
+    echo "Initializing new PostgreSQL cluster at $PG_DATA_DIR"
+    sudo -u postgres "/usr/lib/postgresql/${PG_VERSION}/bin/initdb" -D "$PG_DATA_DIR"
+fi
+
+# Ensure the config file exists
+if [ ! -f "$PG_CONF_PATH" ]; then
+    echo "postgresql.conf not found at $PG_CONF_PATH"
+    exit 1
+fi
+
+if ! grep -q "^#\?data_directory = '$PG_DATA_DIR'" "$PG_CONF_PATH"; then
+    # Set the postgres data storage directory
+    sudo sed -i "s|^#\?data_directory =.*|data_directory = '$PG_DATA_DIR'|" "$PG_CONF_PATH"
+    echo "data_directory updated to $PG_DATA_DIR"
+fi
+
 # Start PostgreSQL
 if pg_isready > /dev/null 2>&1 && pgrep -x "postgres" > /dev/null; then
     sudo service postgresql restart
@@ -193,15 +221,6 @@ TABLES_EXISTING=$(sudo -u postgres psql -d "$DB_NAME" -tAc \
 if [[ "$TABLES_EXISTING" -gt 0 ]]; then
     echo "osm2pgsql import detected — $TABLES_EXISTING tables found with prefix '${TABLE_PREFIX}_'."
 else
-
-    # Path to postgresql.conf based on version
-    PG_CONF_PATH="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
-
-    # Ensure the file exists
-    if [ ! -f "$PG_CONF_PATH" ]; then
-        echo "postgresql.conf not found at $PG_CONF_PATH"
-        exit 1
-    fi
 
     # Set import params dynamically based on available cores and memory
     if [ "$NUM_CORES" -ge 32 ]; then
