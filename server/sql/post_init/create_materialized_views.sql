@@ -8,6 +8,20 @@ WITH rel AS (
   UNION ALL
     SELECT id, tags, extent, geom
     FROM non_area_relation
+),
+way AS (
+  -- the four way tables form a complete set of all the ways
+    SELECT id, ''::hstore AS tags, geom
+    FROM untagged_way
+  UNION ALL
+    SELECT id, tags, geom
+    FROM way_explicit_area
+  UNION ALL
+    SELECT id, tags, geom
+    FROM way_explicit_line
+  UNION ALL
+    SELECT id, tags, geom
+    FROM way_no_explicit_geometry_type
 )
 SELECT
   w.id AS way_id,

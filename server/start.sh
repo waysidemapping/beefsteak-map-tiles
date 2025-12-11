@@ -311,7 +311,8 @@ else
     echo "Running post-import SQL queries..."
     sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init_or_update/area_relation.sql" &
     sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init_or_update/non_area_relation.sql" &
-    sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init_or_update/way_no_explicit_line.sql" &
+    sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init_or_update/way_no_explicit_geometry_type.sql" &
+    sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init_or_update/way_explicit_area.sql" &
     wait
     sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init/create_materialized_views.sql"
 

@@ -22,9 +22,15 @@ AS $$
     RETURN QUERY EXECUTE FORMAT($f$
     WITH
     closed_ways AS (
-      SELECT id, tags, geom, area_3857, 'w' AS osm_type, is_explicit_area FROM way_no_explicit_line
-      WHERE geom && %2$L
-        AND area_3857 > %3$L
+        SELECT id, tags, geom, area_3857, 'w' AS osm_type, true AS is_explicit_area
+        FROM way_explicit_area
+        WHERE geom && %2$L
+          AND area_3857 > %3$L
+      UNION ALL
+        SELECT id, tags, geom, area_3857, 'w' AS osm_type, false AS is_explicit_area
+        FROM way_no_explicit_geometry_type
+        WHERE geom && %2$L
+          AND area_3857 > %3$L
     ),
     relation_areas AS (
       SELECT id, tags, geom, area_3857, 'r' AS osm_type, true AS is_explicit_area FROM area_relation
@@ -80,9 +86,15 @@ AS $$
     RETURN QUERY EXECUTE FORMAT($f$
     WITH
     closed_ways AS (
-      SELECT id, tags, geom, area_3857, 'w' AS osm_type, is_explicit_area FROM way_no_explicit_line
-      WHERE geom && %2$L
-        AND area_3857 > %3$L
+        SELECT id, tags, geom, area_3857, 'w' AS osm_type, true AS is_explicit_area
+        FROM way_explicit_area
+        WHERE geom && %2$L
+          AND area_3857 > %3$L
+      UNION ALL
+        SELECT id, tags, geom, area_3857, 'w' AS osm_type, false AS is_explicit_area
+        FROM way_no_explicit_geometry_type
+        WHERE geom && %2$L
+          AND area_3857 > %3$L
     ),
     relation_areas AS (
       SELECT id, tags, geom, area_3857, 'r' AS osm_type, true AS is_explicit_area FROM area_relation

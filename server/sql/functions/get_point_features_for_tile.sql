@@ -52,8 +52,14 @@ AS $$
           WHERE z26_x BETWEEN %8$L AND %9$L
             AND z26_y BETWEEN %10$L AND %11$L
         UNION ALL
-          SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
-          FROM way_no_explicit_line
+          SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_explicit_area
+          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_y BETWEEN %10$L AND %11$L
+            AND area_3857 < %4$L
+        UNION ALL
+          SELECT id, tags, label_point AS geom, area_3857, false AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_no_explicit_geometry_type
           WHERE label_point_z26_x BETWEEN %8$L AND %9$L
             AND label_point_z26_y BETWEEN %10$L AND %11$L
             AND area_3857 < %4$L
@@ -106,8 +112,14 @@ AS $$
         )
       ),
       large_points AS (
-          SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
-          FROM way_no_explicit_line
+          SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_explicit_area
+          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_y BETWEEN %10$L AND %11$L
+            AND area_3857 BETWEEN %4$L AND %5$L
+        UNION ALL
+          SELECT id, tags, label_point AS geom, area_3857, false AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_no_explicit_geometry_type
           WHERE label_point_z26_x BETWEEN %8$L AND %9$L
             AND label_point_z26_y BETWEEN %10$L AND %11$L
             AND area_3857 BETWEEN %4$L AND %5$L
@@ -180,8 +192,14 @@ AS $$
           WHERE z26_x BETWEEN %8$L AND %9$L
             AND z26_y BETWEEN %10$L AND %11$L
         UNION ALL
-          SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
-          FROM way_no_explicit_line
+          SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_explicit_area
+          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_y BETWEEN %10$L AND %11$L
+            AND area_3857 < %4$L
+        UNION ALL
+          SELECT id, tags, label_point AS geom, area_3857, false AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_no_explicit_geometry_type
           WHERE label_point_z26_x BETWEEN %8$L AND %9$L
             AND label_point_z26_y BETWEEN %10$L AND %11$L
             AND area_3857 < %4$L
@@ -238,7 +256,11 @@ AS $$
           WHERE z26_x BETWEEN %12$L AND %13$L
             AND z26_y BETWEEN %14$L AND %15$L
         UNION ALL
-          SELECT count(*) AS total FROM way_no_explicit_line
+          SELECT count(*) AS total FROM way_explicit_area
+          WHERE label_point_z26_x BETWEEN %12$L AND %13$L
+            AND label_point_z26_y BETWEEN %14$L AND %15$L
+        UNION ALL
+          SELECT count(*) AS total FROM way_no_explicit_geometry_type
           WHERE label_point_z26_x BETWEEN %12$L AND %13$L
             AND label_point_z26_y BETWEEN %14$L AND %15$L
         UNION ALL
@@ -258,8 +280,14 @@ AS $$
             AND (is_notable OR regional_point_count < 75000)
       ),
       large_points AS (
-          SELECT id, tags, label_point AS geom, area_3857, is_explicit_area AS is_node_or_explicit_area, 'w' AS osm_type
-          FROM way_no_explicit_line
+          SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_explicit_area
+          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
+            AND label_point_z26_y BETWEEN %10$L AND %11$L
+            AND area_3857 BETWEEN %4$L AND %5$L
+        UNION ALL
+          SELECT id, tags, label_point AS geom, area_3857, false AS is_node_or_explicit_area, 'w' AS osm_type
+          FROM way_no_explicit_geometry_type
           WHERE label_point_z26_x BETWEEN %8$L AND %9$L
             AND label_point_z26_y BETWEEN %10$L AND %11$L
             AND area_3857 BETWEEN %4$L AND %5$L

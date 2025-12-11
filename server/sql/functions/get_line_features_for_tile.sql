@@ -115,10 +115,15 @@ AS $$
       RETURN QUERY EXECUTE FORMAT($f$
       WITH
       ways_in_tile AS (
-        SELECT id, tags, geom, is_explicit_line
-        FROM way_no_explicit_area
-        WHERE geom && %2$L
-          AND extent >= %3$L
+          SELECT id, tags, geom, true AS is_explicit_line
+          FROM way_explicit_line
+          WHERE geom && %2$L
+            AND extent >= %3$L
+        UNION ALL
+          SELECT id, tags, geom, false AS is_explicit_line
+          FROM way_no_explicit_geometry_type
+          WHERE geom && %2$L
+            AND extent >= %3$L
       ),
       filtered_lines AS (
         SELECT id, tags, geom

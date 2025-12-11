@@ -14,48 +14,41 @@ local node_table = osm2pgsql.define_table({
     }
 })
 
--- Contains all ways (needed to select relation members)
-local way_table = osm2pgsql.define_table({
-    name = 'way',
+-- Untagged ways needed for selecting relation members
+local untagged_way_table = osm2pgsql.define_table({
+    name = 'untagged_way',
     ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
     columns = {
-        { column = 'tags', type = 'hstore', not_null = true },
         { column = 'geom', type = 'linestring', proj = '3857', not_null = true }
     },
     indexes = {
-        { column = 'tags', method = 'gin' },
         { column = 'geom', method = 'gist' }
     }
 })
 
--- Contains: all open ways; all closed ways except those explicitly tagged as areas.
--- Alert! Most closed ways are duplicated in `way_no_explicit_line`.
-local way_no_explicit_area_table = osm2pgsql.define_table({
-    name = 'way_no_explicit_area',
+-- Contains: all tagged open ways + closed ways explcitly tagged as non-areas
+local way_explicit_line_table = osm2pgsql.define_table({
+    name = 'way_explicit_line',
     ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
         { column = 'geom', type = 'linestring', proj = '3857', not_null = true },
-        { column = 'is_explicit_line', type = 'boolean', not_null = true },
         { column = 'extent', type = 'real', not_null = true }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
         { column = 'geom', method = 'gist' },
-        { column = 'is_explicit_line', method = 'btree' },
         { column = 'extent', method = 'btree' }
     }
 })
 
--- Contains: no open ways; all closed ways except those explicitly tagged as lines.
--- Alert! Most closed ways are duplicated in `way_no_explicit_area`.
-local way_no_explicit_line_table = osm2pgsql.define_table({
-    name = 'way_no_explicit_line',
+-- Contains: closed ways explicitly tagged as areas
+local way_explicit_area_table = osm2pgsql.define_table({
+    name = 'way_explicit_area',
     ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
         { column = 'geom', type = 'polygon', proj = '3857', not_null = true },
-        { column = 'is_explicit_area', type = 'boolean', not_null = true },
         { column = 'area_3857', type = 'real', not_null = true },
         { column = 'extent', type = 'real', not_null = true },
         { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
@@ -65,7 +58,29 @@ local way_no_explicit_line_table = osm2pgsql.define_table({
     indexes = {
         { column = 'tags', method = 'gin' },
         { column = 'geom', method = 'gist' },
-        { column = 'is_explicit_area', method = 'btree' },
+        { column = 'area_3857', method = 'btree' },
+        { column = 'extent', method = 'btree' },
+        { column = 'label_point', method = 'gist' },
+        { column = {'label_point_z26_x', 'label_point_z26_y'}, method = 'btree' }
+    }
+})
+
+-- Contains: tagged closed ways lacking enough info to specify them as areas or lines 
+local way_no_explicit_geometry_type_table = osm2pgsql.define_table({
+    name = 'way_no_explicit_geometry_type',
+    ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
+    columns = {
+        { column = 'tags', type = 'hstore', not_null = true },
+        { column = 'geom', type = 'polygon', proj = '3857', not_null = true },
+        { column = 'area_3857', type = 'real', not_null = true },
+        { column = 'extent', type = 'real', not_null = true },
+        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
+        { column = 'label_point_z26_x', type = 'int', create_only = true },
+        { column = 'label_point_z26_y', type = 'int', create_only = true }
+    },
+    indexes = {
+        { column = 'tags', method = 'gin' },
+        { column = 'geom', method = 'gist' },
         { column = 'area_3857', method = 'btree' },
         { column = 'extent', method = 'btree' },
         { column = 'label_point', method = 'gist' },
@@ -233,25 +248,30 @@ function osm2pgsql.process_way(object)
 
     local area_3857 = nil
 
-    if not is_explicit_area then
-        way_no_explicit_area_table:insert({
+    if is_explicit_line then
+        way_explicit_line_table:insert({
             tags = object.tags,
             geom = line_geom,
-            is_explicit_line = is_explicit_line,
             extent = extent
         })
-    end
-
-    if not is_explicit_line then
+    else
         local area_geom = object:as_polygon():transform(3857)
         area_3857 = area_geom:area()
-        way_no_explicit_line_table:insert({
-            tags = object.tags,
-            geom = area_geom,
-            is_explicit_area = is_explicit_area,
-            area_3857 = area_3857,
-            extent = extent
-        })
+        if is_explicit_area then
+            way_explicit_area_table:insert({
+                tags = object.tags,
+                geom = area_geom,
+                area_3857 = area_3857,
+                extent = extent
+            })
+        else
+            way_no_explicit_geometry_type_table:insert({
+                tags = object.tags,
+                geom = area_geom,
+                area_3857 = area_3857,
+                extent = extent
+            })
+        end
     end
 
     if object.tags.natural == 'coastline' then
@@ -260,16 +280,10 @@ function osm2pgsql.process_way(object)
             area_3857 = area_3857
         })
     end
-
-    way_table:insert({
-        tags = object.tags,
-        geom = line_geom
-    })
 end
 -- relation member may be untagged and but we still want to include them
 function osm2pgsql.process_untagged_way(object)
-    way_table:insert({
-        tags = object.tags,
+    untagged_way_table:insert({
         geom = object:as_linestring():transform(3857)
     })
 end
