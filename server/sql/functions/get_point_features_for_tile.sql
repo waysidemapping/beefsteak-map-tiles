@@ -355,4 +355,4 @@ AS $$
     END IF;
   END;
 $$
-SET plan_cache_mode = force_custom_plan;
+;

@@ -200,18 +200,19 @@ else
 fi
 until pg_isready > /dev/null 2>&1; do sleep 1; done
 
+if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$DB_USER'" | grep -q 1; then
+    echo "User '$DB_USER' exists."
+else
+    echo "Creating user '$DB_USER'..."
+    sudo -u postgres createuser "$DB_USER"
+    sudo -u postgres psql "$DB_NAME" --command='ALTER ROLE osmuser SET plan_cache_mode = force_custom_plan;'
+fi
+
 # Setup database
 if sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
     echo "Database '$DB_NAME' exists."
 else
     echo "Creating database '$DB_NAME'..."
-    # Check if user exists
-    if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$DB_USER'" | grep -q 1; then
-        echo "User '$DB_USER' exists."
-    else
-        echo "Creating user '$DB_USER'..."
-        sudo -u postgres createuser "$DB_USER"
-    fi
 
     sudo -u postgres createdb --encoding=UTF8 --owner="$DB_USER" "$DB_NAME"
     sudo -u postgres psql "$DB_NAME" --command='CREATE EXTENSION postgis;'

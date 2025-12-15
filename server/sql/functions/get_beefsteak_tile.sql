@@ -116,7 +116,7 @@ AS $function_body$
     )
     SELECT string_agg(mvt, ''::bytea) FROM tiles;
 $function_body$
-SET plan_cache_mode = force_custom_plan;
+;
 
 COMMENT ON FUNCTION function_get_beefsteak_tile IS
 $tilejson$
