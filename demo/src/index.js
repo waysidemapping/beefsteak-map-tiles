@@ -2,6 +2,8 @@ import {beefsteakProtocolFunction} from './beefsteak-protocol.js';
 
 var map;
 
+const sidebar = document.getElementById('sidebar');
+
 window.addEventListener('load', function () {
   map = new maplibregl.Map({
     container: 'map',
@@ -39,8 +41,6 @@ window.addEventListener('load', function () {
   map.on('click', didClickMap);
 })
 
-let activePopup;
-
 let isPopupLocked = false;
 
 let queryOpts = {layers:['area-target', 'line-target', 'point-label']};
@@ -75,22 +75,10 @@ function processMouseForPopup(e) {
   let entities = map.queryRenderedFeatures(e.point, queryOpts);
 
   if (!entities.length && !isPopupLocked) {
-    activePopup?.remove();
+    sidebar.replaceChildren();
     return;
   }
 
-  if (activePopup && !activePopup.isOpen()) activePopup = null;
-
-  if (!activePopup) {
-    isPopupLocked = false;
-    activePopup = new maplibregl.Popup({
-      className: 'popup',
-      closeButton: true,
-      closeOnClick: false,
-      maxWidth: '300px'
-    })
-    .addTo(map);
-  }
   if (!isPopupLocked) {
 
     let table = createElement('table')
@@ -149,37 +137,21 @@ function processMouseForPopup(e) {
         })
       );
 
-    let coordinates = e.lngLat;
-    // Ensure that if the map is zoomed out such that multiple
-    // copies of the feature are visible, the popup appears
-    // over the copy being pointed to.
-    while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
-      coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
-    }
-
-    activePopup.setLngLat(coordinates)
-      .setDOMContent(table); 
+    sidebar
+      .replaceChildren(table);
   }
 }
 
 function didClickMap(e) {
-  if (activePopup && activePopup.isOpen()) {
-    if (!isPopupLocked) {
-      let classList = activePopup.getElement().classList;
-      if (!classList.contains('locked')) classList.add('locked');
-      isPopupLocked = true;
-    } else {
-      isPopupLocked = false;
+  let entities = map.queryRenderedFeatures(e.point, queryOpts);
 
-      let entities = map.queryRenderedFeatures(e.point, queryOpts);
-
-      if (entities.length) {
-        processMouseForPopup(e);
-        isPopupLocked = true;
-      } else {
-        activePopup.remove();
-      }
-    }
+  if (entities.length) {
+    isPopupLocked = false;
+    processMouseForPopup(e);
+    isPopupLocked = true;
+  } else {
+    sidebar.replaceChildren();
+    isPopupLocked = false;
   }
 }
 
