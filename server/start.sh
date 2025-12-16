@@ -235,27 +235,30 @@ else
         MAX_PARALLEL_PER_GATHER=8
     elif [ "$NUM_CORES" -ge 8 ]; then
         MAX_PARALLEL_WORKERS=16
-        MAX_PARALLEL_PER_GATHER=4
+        MAX_PARALLEL_PER_GATHER=8
     else
         MAX_PARALLEL_WORKERS=$NUM_CORES
         MAX_PARALLEL_PER_GATHER=$(( NUM_CORES / 2 ))
         # Ensure at least 1
         [ "$MAX_PARALLEL_PER_GATHER" -lt 1 ] && MAX_PARALLEL_PER_GATHER=1
     fi
-    SHARED_BUFFERS_MB=$(( MEM_KB * 25 / 100 / 1024 ))       # 25% RAM
-    MAINTENANCE_MB=$(( MEM_KB * 60 / 100 / 1024 ))          # 60% RAM
-    AUTOVAC_MB=$(( MEM_KB * 25 / 100 / 1024 ))              # 25% RAM
+    SHARED_BUFFERS_MB=$(( MEM_KB * 25 / 100 / 1024 ))   # 25% RAM
+    MAINTENANCE_MB=$(( MEM_KB * 60 / 100 / 1024 ))      # 60% RAM
+    AUTOVAC_MB=$(( MEM_KB * 25 / 100 / 1024 ))          # 25% RAM
+    EFFECTIVE_CACHE_MB=$(( MEM_KB * 75 / 100 / 1024 ))  # 75% RAM
 
     declare -A PARAMS=(
         ["shared_buffers"]="${SHARED_BUFFERS_MB}MB"
         ["work_mem"]="64MB"
         ["maintenance_work_mem"]="${MAINTENANCE_MB}MB"
         ["autovacuum_work_mem"]="${AUTOVAC_MB}MB"
+        ["effective_cache_size"]="${EFFECTIVE_CACHE_MB}MB"
         ["wal_level"]="minimal"
         ["synchronous_commit"]="off"
         ["full_page_writes"]="off"
         ["checkpoint_timeout"]="60min"
-        ["max_wal_size"]="100GB"
+        ["min_wal_size"]="32GB"
+        ["max_wal_size"]="128GB"
         ["checkpoint_completion_target"]="0.9"
         ["max_parallel_workers"]="$MAX_PARALLEL_WORKERS"
         ["max_parallel_workers_per_gather"]="$MAX_PARALLEL_PER_GATHER"
@@ -264,6 +267,7 @@ else
         ["effective_io_concurrency"]="8"
         ["temp_buffers"]="64MB"
         ["autovacuum"]="off"
+        ["jit"]="off"
     )
     for key in "${!PARAMS[@]}"; do
         value="${PARAMS[$key]}"
@@ -321,57 +325,66 @@ else
 
     # We need to manually do this since we turned off autovacuum for the import
     sudo -u "$DB_USER" psql "$DB_NAME" --command="VACUUM ANALYZE;"
+fi
 
-    # Set tileserving params dynamically based on available cores and memory
-    if [ "$NUM_CORES" -ge 32 ]; then
-        MAX_PARALLEL_WORKERS=16
-        MAX_PARALLEL_PER_GATHER=4
-    elif [ "$NUM_CORES" -ge 16 ]; then
-        MAX_PARALLEL_WORKERS=8
-        MAX_PARALLEL_PER_GATHER=2
-    elif [ "$NUM_CORES" -ge 8 ]; then
-        MAX_PARALLEL_WORKERS=4
-        MAX_PARALLEL_PER_GATHER=1
-    else
-        MAX_PARALLEL_WORKERS=$NUM_CORES
-        MAX_PARALLEL_PER_GATHER=$(( NUM_CORES / 2 ))
-        [ "$MAX_PARALLEL_PER_GATHER" -lt 1 ] && MAX_PARALLEL_PER_GATHER=1
+# Set tileserving params dynamically based on available cores and memory
+if [ "$NUM_CORES" -ge 32 ]; then
+    MAX_PARALLEL_WORKERS=16
+    MAX_PARALLEL_PER_GATHER=4
+elif [ "$NUM_CORES" -ge 16 ]; then
+    MAX_PARALLEL_WORKERS=8
+    MAX_PARALLEL_PER_GATHER=2
+elif [ "$NUM_CORES" -ge 8 ]; then
+    MAX_PARALLEL_WORKERS=4
+    MAX_PARALLEL_PER_GATHER=2
+else
+    MAX_PARALLEL_WORKERS=$(( NUM_CORES - 2 ))
+    [ "$MAX_PARALLEL_WORKERS" -lt 2 ] && MAX_PARALLEL_WORKERS=2
+    MAX_PARALLEL_PER_GATHER=2
+fi
+SHARED_BUFFERS_MB=$(( MEM_KB * 25 / 100 / 1024 ))   # 25% RAM
+MAINTENANCE_MB=$(( MEM_KB * 5 / 100 / 1024 ))       # 5% RAM
+AUTOVAC_MB=$(( MEM_KB * 2 / 100 / 1024 ))           # 2% RAM
+EFFECTIVE_CACHE_MB=$(( MEM_KB * 75 / 100 / 1024 ))  # 75% RAM
+
+declare -A PARAMS=(
+    ["shared_buffers"]="${SHARED_BUFFERS_MB}MB"
+    ["work_mem"]="64MB"                           
+    ["maintenance_work_mem"]="${MAINTENANCE_MB}MB"
+    ["autovacuum_work_mem"]="${AUTOVAC_MB}MB"
+    ["effective_cache_size"]="${EFFECTIVE_CACHE_MB}MB"
+    ["wal_level"]="replica"
+    ["synchronous_commit"]="on"
+    ["full_page_writes"]="on"
+    ["checkpoint_timeout"]="15min"
+    ["min_wal_size"]="4GB"
+    ["max_wal_size"]="16GB"
+    ["checkpoint_completion_target"]="0.9"
+    ["max_parallel_workers"]="$MAX_PARALLEL_WORKERS"
+    ["max_parallel_workers_per_gather"]="$MAX_PARALLEL_PER_GATHER"
+    ["max_wal_senders"]="5"
+    ["random_page_cost"]="1.0"
+    ["effective_io_concurrency"]="128"
+    ["temp_buffers"]="32MB"
+    ["autovacuum"]="on"
+    ["jit"]="off"
+)
+
+CONFIG_UPDATED=0
+for key in "${!PARAMS[@]}"; do
+    value="${PARAMS[$key]}"
+    # Check if value is already as desired
+    if grep -Eq "^[[:space:]]*${key}[[:space:]]*=[[:space:]]*${value}\b" "$PG_CONF_PATH"; then
+        continue
     fi
-    SHARED_BUFFERS_MB=$(( MEM_KB * 25 / 100 / 1024 ))   # 25% RAM
-    MAINTENANCE_MB=$(( MEM_KB * 5 / 100 / 1024 ))       # 5% RAM
-    AUTOVAC_MB=$(( MEM_KB * 2 / 100 / 1024 ))           # 2% RAM
+    # Remove any existing lines for this parameter (commented or active)
+    sudo sed -i "/^[[:space:]]*#\?[[:space:]]*${key}[[:space:]]*=/d" "$PG_CONF_PATH"
+    # Append desired parameter
+    echo "${key} = ${value}" | sudo tee -a "$PG_CONF_PATH" >/dev/null
+    CONFIG_UPDATED=1
+done
 
-    declare -A PARAMS=(
-        ["shared_buffers"]="${SHARED_BUFFERS_MB}MB"
-        ["work_mem"]="16MB"                           
-        ["maintenance_work_mem"]="${MAINTENANCE_MB}MB"
-        ["autovacuum_work_mem"]="${AUTOVAC_MB}MB"
-        ["wal_level"]="replica"
-        ["synchronous_commit"]="on"
-        ["full_page_writes"]="on"
-        ["checkpoint_timeout"]="10min"
-        ["max_wal_size"]="4GB"
-        ["checkpoint_completion_target"]="0.7"
-        ["max_parallel_workers"]="$MAX_PARALLEL_WORKERS"
-        ["max_parallel_workers_per_gather"]="$MAX_PARALLEL_PER_GATHER"
-        ["max_wal_senders"]="5"
-        ["random_page_cost"]="1.0"
-        ["effective_io_concurrency"]="4"
-        ["temp_buffers"]="16MB"
-        ["autovacuum"]="on"
-    )
-    for key in "${!PARAMS[@]}"; do
-        value="${PARAMS[$key]}"
-        # Check if value is already as desired
-        if grep -Eq "^[[:space:]]*${key}[[:space:]]*=[[:space:]]*${value}\b" "$PG_CONF_PATH"; then
-            continue
-        fi
-        # Remove any existing lines for this parameter (commented or active)
-        sudo sed -i "/^[[:space:]]*#\?[[:space:]]*${key}[[:space:]]*=/d" "$PG_CONF_PATH"
-        # Append desired parameter
-        echo "${key} = ${value}" | sudo tee -a "$PG_CONF_PATH" >/dev/null
-    done
-
+if [ "$CONFIG_UPDATED" -eq 1 ]; then
     # Restart postgres so our config file changes take effect
     sudo service postgresql restart
     until pg_isready > /dev/null 2>&1; do sleep 1; done
