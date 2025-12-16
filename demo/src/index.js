@@ -49,7 +49,7 @@ window.addEventListener('load', async function () {
   map.on('click', didClickMap);
 })
 
-let isPopupLocked = false;
+let isInspectorLocked = false;
 
 let queryOpts = {layers:['area-target', 'line-target', 'point-label']};
 
