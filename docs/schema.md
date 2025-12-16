@@ -111,7 +111,7 @@ This table show top-level tag support in Beefsteak tiles. A checkmark (✔︎) m
 |`amenity`            |✔︎| |✔︎| |Yes|
 |`area:highway`       | | |✔︎| |Yes|
 |`barrier`            |✔︎|✔︎|✔︎| |No |
-|`boundary`           |✔︎| |✔︎|✔︎|Yes| Only `boundary=protected_area/aboriginal_lands` appear in the `area` layer. Only `boundary=administrative` appears in the `relation` layer.
+|`boundary`           |✔︎| |✔︎|✔︎|Yes| Only `boundary=aboriginal_lands/protected_area` appear in the `area` layer. Only `boundary=aboriginal_lands/administrative/protected_area` appear in the `point` and `relation` layers.
 |`building`           |✔︎| |✔︎| |Yes|
 |`building:part`      | | |✔︎| |Yes|
 |`club`               |✔︎| |✔︎| |Yes|

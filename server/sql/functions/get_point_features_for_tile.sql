@@ -130,15 +130,19 @@ AS $$
       ),
       filtered_large_points AS (
         SELECT * FROM large_points
-        WHERE (
-          tags ?| ARRAY['advertising', 'amenity', 'boundary', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
-        ) OR (
-          tags ? 'natural'
-          AND NOT tags @> 'natural => coastline'
-        ) OR (
-          tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
-          AND is_node_or_explicit_area
-        )
+        WHERE 
+          tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+          OR (
+            tags @> 'boundary => aboriginal_lands'
+            OR tags @> 'boundary => administrative'
+            OR tags @> 'boundary => protected_area'
+          ) OR (
+            tags ? 'natural'
+            AND NOT tags @> 'natural => coastline'
+          ) OR (
+            tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
+            AND is_node_or_explicit_area
+          )
       ),
       route_centerpoints AS (
         SELECT
@@ -233,8 +237,12 @@ AS $$
           (tags ? 'name' OR tags ? 'wikidata') AS is_notable
         FROM small_points
         WHERE 
-          tags ?| ARRAY['advertising', 'amenity', 'boundary', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+          tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
           OR (
+            tags @> 'boundary => aboriginal_lands'
+            OR tags @> 'boundary => administrative'
+            OR tags @> 'boundary => protected_area'
+          ) OR (
             tags ? 'building'
             AND (tags ? 'name' OR tags ? 'wikidata' OR %1$L >= 15)
           ) OR (
@@ -296,15 +304,19 @@ AS $$
       ),
       filtered_large_points AS (
         SELECT * FROM large_points
-        WHERE (
-          tags ?| ARRAY['advertising', 'amenity', 'boundary', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
-        ) OR (
-          tags ? 'natural'
-          AND NOT tags @> 'natural => coastline'
-        ) OR (
-          tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
-          AND is_node_or_explicit_area
-        )
+        WHERE
+          tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+          OR (
+            tags @> 'boundary => aboriginal_lands'
+            OR tags @> 'boundary => administrative'
+            OR tags @> 'boundary => protected_area'
+          ) OR (
+            tags ? 'natural'
+            AND NOT tags @> 'natural => coastline'
+          ) OR (
+            tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
+            AND is_node_or_explicit_area
+          )
       ),
       route_centerpoints AS (
         SELECT

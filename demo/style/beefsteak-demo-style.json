@@ -22,7 +22,7 @@
             "source": "beefsteak",
             "source-layer": "area",
             "type": "fill",
-            "filter": ["!", ["any", ["has", "building"], ["==", ["get", "boundary"], "administrative"]]],
+            "filter": ["!", ["any", ["has", "building"]]],
             "paint": {
                 "fill-color": [
                     "case",
@@ -46,8 +46,7 @@
                 ["has", "route"],
                 ["has", "waterway"],
                 ["has", "power"],
-                ["in", "┃administrative┃", ["get", "r.boundary"]],
-                ["in", "┃hiking┃", ["get", "r.route"]]
+                ["has", "r.boundary"]
             ]],
             "paint": {
                 "line-color": "Purple",
@@ -140,7 +139,7 @@
             "source": "beefsteak",
             "source-layer": "line",
             "type": "line",
-            "filter": ["in", "┃administrative┃", ["get", "r.boundary"]],
+            "filter": ["has", "r.boundary"],
             "paint": {
                 "line-color": "Magenta",
                 "line-dasharray": [4, 4]

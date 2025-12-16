@@ -53,8 +53,8 @@ AS $$
       UNION ALL
         SELECT * FROM areas
         -- only certain boundaries are relevant for rendering as areas
-        WHERE tags @> 'boundary => protected_area'
-          OR tags @> 'boundary => aboriginal_lands'
+        WHERE tags @> 'boundary => aboriginal_lands'
+          OR tags @> 'boundary => protected_area'
       UNION ALL
         SELECT * FROM areas
         WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
@@ -117,8 +117,8 @@ AS $$
       UNION ALL
         SELECT * FROM areas
         -- only certain boundaries are relevant for rendering as areas
-        WHERE tags @> 'boundary => protected_area'
-          OR tags @> 'boundary => aboriginal_lands'
+        WHERE tags @> 'boundary => aboriginal_lands'
+          OR tags @> 'boundary => protected_area'
       UNION ALL
         SELECT * FROM areas
         WHERE tags ? 'building'

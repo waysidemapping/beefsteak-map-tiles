@@ -11,12 +11,14 @@ AS $$
     env_width real;
     min_way_extent real;
     min_rel_extent real;
+    min_area real;
     simplify_tolerance real;
   BEGIN
     env_geom := ST_TileEnvelope(z, x, y);
     env_width := ST_XMax(env_geom) - ST_XMin(env_geom);
     min_way_extent := env_width / 1024.0;
     min_rel_extent := min_way_extent * 192;
+    min_area := power(min_way_extent * 4, 2);
     simplify_tolerance := min_way_extent * 0.75;
     IF z = 0 THEN
       RETURN;
@@ -74,7 +76,7 @@ AS $$
           AND r.tags @> 'type => waterway'
           AND r.extent >= %4$L
       ),
-      admin_boundaries AS (
+      boundary_members AS (
         SELECT
           w.id AS id,
           w.tags AS tags,
@@ -105,7 +107,7 @@ AS $$
           FROM waterways
         UNION ALL
           SELECT *
-          FROM admin_boundaries
+          FROM boundary_members
       ),
       collapsed AS (
         SELECT
@@ -126,7 +128,7 @@ AS $$
       grouped_and_simplified AS (
         SELECT
           tags,
-          ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %5$L, true) AS geom,
+          ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %6$L, true) AS geom,
           ANY_VALUE(relation_ids) AS relation_ids
         FROM tagged
         GROUP BY tags
@@ -138,7 +140,7 @@ AS $$
         relation_ids
       FROM grouped_and_simplified
       ;
-      $f$, z, env_geom, min_way_extent, min_rel_extent, simplify_tolerance);
+      $f$, z, env_geom, min_way_extent, min_rel_extent,  min_area, simplify_tolerance);
     ELSE
       RETURN QUERY EXECUTE FORMAT($f$
       WITH
@@ -255,7 +257,7 @@ AS $$
           AND r.tags @> 'type => waterway'
           AND r.extent >= %4$L
       ),
-      admin_boundaries AS (
+      boundary_members AS (
         SELECT
           w.id AS id,
           w.tags AS tags,
@@ -266,7 +268,12 @@ AS $$
         JOIN way_relation_member rw ON w.id = rw.member_id
         JOIN area_relation r ON rw.relation_id = r.id
         WHERE w.geom && %2$L
-          AND r.tags @> 'boundary => administrative'
+          AND (
+            r.tags @> 'boundary => aboriginal_lands'
+            OR r.tags @> 'boundary => administrative'
+            OR r.tags @> 'boundary => protected_area'
+          )
+          AND r.area_3857 > %6$L
       ),
       combined_lines AS (
           SELECT id, tags, geom, NULL::text AS member_role, NULL::int8 AS relation_id
@@ -279,7 +286,7 @@ AS $$
           FROM waterways
         UNION ALL
           SELECT *
-          FROM admin_boundaries
+          FROM boundary_members
       ),
       collapsed AS (
         SELECT id,
@@ -291,7 +298,7 @@ AS $$
         GROUP BY id
       ),
       simplified_lines AS (
-        SELECT id, tags, ST_Simplify(geom, %5$L, true) AS geom, relation_ids
+        SELECT id, tags, ST_Simplify(geom, %6$L, true) AS geom, relation_ids
         FROM collapsed
       )
       SELECT
@@ -305,7 +312,7 @@ AS $$
         relation_ids
       FROM simplified_lines
       ;
-      $f$, z, env_geom, min_way_extent, min_rel_extent, simplify_tolerance);
+      $f$, z, env_geom, min_way_extent, min_rel_extent, min_area, simplify_tolerance);
     END IF;
   END;
 $$
