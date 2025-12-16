@@ -51,9 +51,9 @@ local way_explicit_area_table = osm2pgsql.define_table({
         { column = 'geom', type = 'polygon', proj = '3857', not_null = true },
         { column = 'area_3857', type = 'real', not_null = true },
         { column = 'extent', type = 'real', not_null = true },
-        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
-        { column = 'label_point_z26_x', type = 'int', create_only = true },
-        { column = 'label_point_z26_y', type = 'int', create_only = true }
+        { column = 'label_point', type = 'point', proj = '3857' },
+        { column = 'label_point_z26_x', type = 'int' },
+        { column = 'label_point_z26_y', type = 'int' }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
@@ -74,9 +74,9 @@ local way_no_explicit_geometry_type_table = osm2pgsql.define_table({
         { column = 'geom', type = 'polygon', proj = '3857', not_null = true },
         { column = 'area_3857', type = 'real', not_null = true },
         { column = 'extent', type = 'real', not_null = true },
-        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
-        { column = 'label_point_z26_x', type = 'int', create_only = true },
-        { column = 'label_point_z26_y', type = 'int', create_only = true }
+        { column = 'label_point', type = 'point', proj = '3857' },
+        { column = 'label_point_z26_x', type = 'int' },
+        { column = 'label_point_z26_y', type = 'int' }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
@@ -112,9 +112,9 @@ local area_relation_table = osm2pgsql.define_table({
         { column = 'extent', type = 'real' },
         { column = 'area_3857', type = 'real' },
         { column = 'label_node_id', type = 'int8' },
-        { column = 'label_point', sql_type = 'GEOMETRY(Point, 3857)', create_only = true },
-        { column = 'label_point_z26_x', type = 'int', create_only = true },
-        { column = 'label_point_z26_y', type = 'int', create_only = true }
+        { column = 'label_point', type = 'point', proj = '3857' },
+        { column = 'label_point_z26_x', type = 'int' },
+        { column = 'label_point_z26_y', type = 'int' }
     },
     indexes = {
         { column = 'tags', method = 'gin' },
@@ -226,13 +226,15 @@ function osm2pgsql.process_way(object)
     local is_explicit_line = not object.is_closed or object.tags.area == 'no'
     local is_explicit_area = object.is_closed and (object.tags.area == 'yes' or object.tags.building ~= nil)
 
-    local line_geom = object:as_linestring():transform(3857)
-    local min_x, min_y, max_x, max_y = line_geom:get_bbox()
-    local extent = math.sqrt(math.pow(max_x - min_x, 2) + math.pow(max_y - min_y, 2))
-
-    local area_3857 = nil
+    local area_3857
+    local line_geom
 
     if is_explicit_line then
+        line_geom = object:as_linestring():transform(3857)
+        local min_x, min_y, max_x, max_y = line_geom:get_bbox()
+        local dx = max_x - min_x
+        local dy = max_y - min_y
+        local extent = math.sqrt(dx * dx + dy * dy)
         way_explicit_line_table:insert({
             tags = object.tags,
             geom = line_geom,
@@ -241,24 +243,47 @@ function osm2pgsql.process_way(object)
     else
         local area_geom = object:as_polygon():transform(3857)
         area_3857 = area_geom:area()
+        local min_x, min_y, max_x, max_y = area_geom:get_bbox()
+        local dx = max_x - min_x
+        local dy = max_y - min_y
+        local extent = math.sqrt(dx * dx + dy * dy)
+        
+        local label_point = area_geom:pole_of_inaccessibility()
+        local z26_x, z26_y
+        if label_point then
+            z26_x, z26_y = z26_tile(label_point:get_bbox())
+        end
+
         if is_explicit_area then
             way_explicit_area_table:insert({
                 tags = object.tags,
                 geom = area_geom,
                 area_3857 = area_3857,
-                extent = extent
+                extent = extent,
+                label_point = label_point,
+                label_point_z26_x = z26_x,
+                label_point_z26_y = z26_y
             })
         else
             way_no_explicit_geometry_type_table:insert({
                 tags = object.tags,
                 geom = area_geom,
                 area_3857 = area_3857,
-                extent = extent
+                extent = extent,
+                label_point = label_point,
+                label_point_z26_x = z26_x,
+                label_point_z26_y = z26_y
             })
         end
     end
 
     if object.tags.natural == 'coastline' then
+        if not line_geom then
+            line_geom = object:as_linestring():transform(3857)
+        end
+        if not area_3857 and object.is_closed then
+            area_3857 = object:as_polygon():transform(3857):area()
+        end
         coastline_table:insert({
             geom = line_geom,
             area_3857 = area_3857
@@ -306,22 +331,53 @@ function osm2pgsql.process_relation(object)
         end
 
         if multipolygon_relation_types[relType] then
-            local geom = object:as_multipolygon():transform(3857) 
+            local geom = object:as_multipolygon():transform(3857)
             local min_x, min_y, max_x, max_y = geom:get_bbox()
+            local dx = max_x - min_x
+            local dy = max_y - min_y
+            local extent = math.sqrt(dx * dx + dy * dy)
+            local label_point, z26_x, z26_y
+            if not label_node_id then
+
+                local largest_polygon
+                local max_area = 0
+                for polygon in geom:geometries() do
+                    local area = polygon:area()
+                    if area > max_area then
+                        max_area = area
+                        largest_polygon = polygon
+                    end
+                end
+
+                if largest_polygon then
+                    -- pole_of_inaccessibility works only on polygons, so use the largest component
+                    label_point = largest_polygon:pole_of_inaccessibility()
+                    if label_point then
+                        z26_x, z26_y = z26_tile(label_point:get_bbox())
+                    end
+                end
+            end
             area_relation_table:insert({
                 tags = object.tags,
                 geom = geom,
-                extent = math.sqrt(math.pow(max_x - min_x, 2) + math.pow(max_y - min_y, 2)),
+                extent = extent,
                 area_3857 = geom:area(),
-                label_node_id = label_node_id
+                label_node_id = label_node_id,
+                label_point = label_point,
+                label_point_z26_x = z26_x,
+                label_point_z26_y = z26_y
             })
         else
             local geom = object:as_geometrycollection():transform(3857)
             local min_x, min_y, max_x, max_y = geom:get_bbox()
+            local dx = max_x - min_x
+            local dy = max_y - min_y
+            local extent = math.sqrt(dx * dx + dy * dy)
+
             non_area_relation_table:insert({
                 tags = object.tags,
                 geom = geom,
-                extent = math.sqrt(math.pow(max_x - min_x, 2) + math.pow(max_y - min_y, 2)),
+                extent = extent,
                 label_node_id = label_node_id
             })
         end

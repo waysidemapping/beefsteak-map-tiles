@@ -80,8 +80,8 @@ Features in the `point` layer are point geometries that are intended to be rende
 Features in the `point` layer correspond to:
 
 * Nodes
-* Closed ways that also appear in the `area` layer, represented at the [`ST_PointOnSurface`](https://postgis.net/docs/ST_PointOnSurface.html)
-* `type=multipolygon` and `type=boundary` relations, represented at the node with the [`label`](https://wiki.openstreetmap.org/wiki/Role:label) role if any, otherwise at the `ST_PointOnSurface`
+* Closed ways that also appear in the `area` layer, represented at the [pole of inaccessibility](https://blog.jochentopf.com/2022-11-10-finding-representative-points-for-polygons.html)
+* `type=multipolygon` and `type=boundary` relations, represented at the node with the [`label`](https://wiki.openstreetmap.org/wiki/Role:label) role if any, otherwise at the pole of inaccessibility
 
 Features in the `point` layer are filtered as so:
 

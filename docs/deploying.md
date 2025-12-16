@@ -88,10 +88,10 @@ This is a long script designed to automate a lot of the finicky details around s
 - Download the OSM planet file
 - Use osm2pgsql to import the planet into Postgres using the Beefsteak table definitions (this is the longest part)
 - Run post-import follow-up commands in Postgres needed for Beefsteak (this can also be long)
-- Load Beefsteak's tileserving functions into Postgres
+- Load Beefsteak's tile rendering functions into Postgres
 - Start the Martin tileserver
 
-The whole process may take up to 24 hours depending on your machine. Generally you can rerun the start script at any time to restart the server, and completed steps will be skipped.
+The whole process may take up to 36 hours depending on your machine. Generally you can rerun the start script at any time to restart the server, and completed steps will be skipped.
 
 For total control, or if you run into issues, you can choose to dissect the start script yourself and run each command manually.
 

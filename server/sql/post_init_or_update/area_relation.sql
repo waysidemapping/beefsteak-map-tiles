@@ -1,18 +1,9 @@
-
-SET work_mem = '512MB';
-WITH to_update AS (
-  SELECT
-    r.id,
-    COALESCE(n.geom, ST_PointOnSurface(r.geom)) AS centerpoint
-  FROM area_relation r
-  LEFT JOIN node n ON n.id = r.label_node_id
-  WHERE r.label_point IS NULL
-)
 UPDATE area_relation r
 SET
-  label_point = centerpoint,
-  label_point_z26_x = floor((ST_X(centerpoint) + 20037508.3427892) / (40075016.6855784 / (1 << 26))),
-  label_point_z26_y = floor((20037508.3427892 - ST_Y(centerpoint)) / (40075016.6855784 / (1 << 26)))
-FROM to_update u
-WHERE r.id = u.id AND centerpoint IS NOT NULL;
-RESET work_mem;
+  label_point = n.geom,
+  label_point_z26_x = n.z26_x,
+  label_point_z26_y = n.z26_y
+FROM node n
+WHERE
+  r.label_point IS NULL
+  AND n.id = r.label_node_id;
