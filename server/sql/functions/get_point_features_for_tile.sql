@@ -229,18 +229,18 @@ AS $$
           OR tags @> 'aeroway => aerodrome'
           OR tags @> 'highway => motorway_junction'
       ),
-      point_region_stats AS (
+      point_region_stats AS MATERIALIZED (
         SELECT count(*) AS filtered_small_point_count FROM filtered_small_points
       ),
       -- Only include small points if we don't think they will make the tile too big
       reduced_small_points AS (
           SELECT id, tags, geom, area_3857, osm_type
-          FROM ranked_small_points, point_region_stats
-          WHERE filtered_small_point_count < 16000
+          FROM filtered_small_points, point_region_stats
+          WHERE filtered_small_point_count < 20000
             -- Include only notable features unless we have room to spare.
             -- Assume that a feature with a name (e.g. park, business, artwork) is more important than one without
             -- (e.g. crossing, pole, gate). Features linked to Wikidata items are assumed to be notable regardless.
-            AND (filtered_small_point_count < 8000 OR tags ? 'name' OR tags ? 'wikidata')
+            AND (filtered_small_point_count < 5000 OR tags ? 'name' OR tags ? 'wikidata')
       ),
       large_points AS (
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
