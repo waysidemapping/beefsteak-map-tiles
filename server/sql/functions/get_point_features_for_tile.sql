@@ -8,7 +8,6 @@ LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
 AS $$
   DECLARE
     env_geom geometry;
-    wide_env_geom geometry;
     env_width real;
     min_extent real;
     min_area real;
@@ -19,56 +18,44 @@ AS $$
     z26_x_max integer;
     z26_y_min integer;
     z26_y_max integer;
-    wide_z26_x_min integer;
-    wide_z26_x_max integer;
-    wide_z26_y_min integer;
-    wide_z26_y_max integer;
   BEGIN
     env_geom := ST_TileEnvelope(z, x, y);
     env_width := ST_XMax(env_geom) - ST_XMin(env_geom);
-    wide_env_geom := ST_Expand(env_geom, env_width);
     min_extent := env_width / 1024.0;
     min_area := power(min_extent * 32, 2);
     max_area := power(min_extent * 4096, 2);
-    min_rel_extent := min_extent * 192;
-    max_rel_extent := min_extent * 192 * 16;
 
     z26_x_min := x * (1 << (26 - z));
     z26_x_max := ((x + 1) * (1 << (26 - z))) - 1;
     z26_y_min := y * (1 << (26 - z));
     z26_y_max := ((y + 1) * (1 << (26 - z))) - 1;
-
-    wide_z26_x_min := (x - 1) * (1 << (26 - z));
-    wide_z26_x_max := ((x + 2) * (1 << (26 - z))) - 1;
-    wide_z26_y_min := (y - 1) * (1 << (26 - z));
-    wide_z26_y_max := ((y + 2) * (1 << (26 - z))) - 1;
-
+    
     IF z < 12 THEN
       RETURN QUERY EXECUTE FORMAT($f$
       WITH
       small_points AS (
           SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type
           FROM node
-          WHERE z26_x BETWEEN %8$L AND %9$L
-            AND z26_y BETWEEN %10$L AND %11$L
+          WHERE z26_x BETWEEN %5$L AND %6$L
+            AND z26_y BETWEEN %7$L AND %8$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_explicit_area
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 < %4$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 < %3$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, false AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_geometry_type
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 < %4$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 < %3$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 < %4$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 < %3$L
       ),
       low_zoom_small_points AS (
         SELECT * FROM small_points
@@ -103,46 +90,52 @@ AS $$
           (
             tags @> 'place => locality'
             OR tags @> 'public_transport => station'
-            OR tags @> 'aeroway => aerodrome'
+          )
+          AND %1$L >= 9
+        ) OR (
+          (
+            tags @> 'aeroway => aerodrome'
             OR tags @> 'highway => motorway_junction'
           )
           AND %1$L >= 9
+          AND is_node_or_explicit_area
         )
       ),
       large_points AS (
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_explicit_area
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 BETWEEN %4$L AND %5$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 BETWEEN %3$L AND %4$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, false AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_geometry_type
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 BETWEEN %4$L AND %5$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 BETWEEN %3$L AND %4$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 BETWEEN %4$L AND %5$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 BETWEEN %3$L AND %4$L
       ),
       filtered_large_points AS (
-        SELECT * FROM large_points
-        WHERE 
-          tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
-          OR (
-            tags @> 'boundary => aboriginal_lands'
+          SELECT * FROM large_points
+          WHERE tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+        UNION ALL
+          SELECT * FROM large_points
+          WHERE tags @> 'boundary => aboriginal_lands'
             OR tags @> 'boundary => administrative'
             OR tags @> 'boundary => protected_area'
-          ) OR (
-            tags ? 'natural'
+        UNION ALL
+          SELECT * FROM large_points
+          WHERE tags ? 'natural'
             AND NOT tags @> 'natural => coastline'
-          ) OR (
-            tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
+        UNION ALL
+          SELECT * FROM large_points
+          WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
             AND is_node_or_explicit_area
-          )
       ),
       all_points AS (
           SELECT id, tags::jsonb, geom, area_3857, osm_type, NULL::int8[] AS relation_ids FROM low_zoom_small_points
@@ -162,33 +155,33 @@ AS $$
         relation_ids
       FROM all_points
       ;
-      $f$, z, env_geom, wide_env_geom, min_area, max_area, min_rel_extent, max_rel_extent, z26_x_min, z26_x_max, z26_y_min, z26_y_max);
+      $f$, z, env_geom, min_area, max_area, z26_x_min, z26_x_max, z26_y_min, z26_y_max);
     ELSE
       RETURN QUERY EXECUTE FORMAT($f$
       WITH
       small_points AS (
           SELECT id, tags, geom, NULL::real AS area_3857, true AS is_node_or_explicit_area, 'n' AS osm_type
           FROM node
-          WHERE z26_x BETWEEN %8$L AND %9$L
-            AND z26_y BETWEEN %10$L AND %11$L
+          WHERE z26_x BETWEEN %5$L AND %6$L
+            AND z26_y BETWEEN %7$L AND %8$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_explicit_area
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 < %4$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 < %3$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, false AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_geometry_type
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 < %4$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 < %3$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 < %4$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 < %3$L
       ),
       filtered_small_points AS (
           SELECT * FROM small_points
@@ -226,40 +219,45 @@ AS $$
           OR tags @> 'natural => volcano'
           OR tags @> 'place => locality'
           OR tags @> 'public_transport => station'
-          OR tags @> 'aeroway => aerodrome'
-          OR tags @> 'highway => motorway_junction'
+          OR (
+            (
+              tags @> 'aeroway => aerodrome'
+              OR tags @> 'highway => motorway_junction'
+            )
+            AND is_node_or_explicit_area
+          )
       ),
-      point_region_stats AS MATERIALIZED (
+      point_region_stats AS (
         SELECT count(*) AS filtered_small_point_count FROM filtered_small_points
       ),
       -- Only include small points if we don't think they will make the tile too big
       reduced_small_points AS (
-          SELECT id, tags, geom, area_3857, osm_type
-          FROM filtered_small_points, point_region_stats
-          WHERE filtered_small_point_count < 20000
-            -- Include only notable features unless we have room to spare.
-            -- Assume that a feature with a name (e.g. park, business, artwork) is more important than one without
-            -- (e.g. crossing, pole, gate). Features linked to Wikidata items are assumed to be notable regardless.
-            AND (filtered_small_point_count < 5000 OR tags ? 'name' OR tags ? 'wikidata')
+        SELECT id, tags, geom, area_3857, osm_type
+        FROM filtered_small_points, point_region_stats
+        WHERE filtered_small_point_count < 20000
+          -- Include only notable features unless we have room to spare.
+          -- Assume that a feature with a name (e.g. park, business, artwork) is more important than one without
+          -- (e.g. crossing, pole, gate). Features linked to Wikidata items are assumed to be notable regardless.
+          AND (filtered_small_point_count < 5000 OR tags ? 'name' OR tags ? 'wikidata' OR %1$L >= 18)
       ),
       large_points AS (
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_explicit_area
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 BETWEEN %4$L AND %5$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 BETWEEN %3$L AND %4$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, false AS is_node_or_explicit_area, 'w' AS osm_type
           FROM way_no_explicit_geometry_type
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 BETWEEN %4$L AND %5$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 BETWEEN %3$L AND %4$L
         UNION ALL
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'r' AS osm_type
           FROM area_relation
-          WHERE label_point_z26_x BETWEEN %8$L AND %9$L
-            AND label_point_z26_y BETWEEN %10$L AND %11$L
-            AND area_3857 BETWEEN %4$L AND %5$L
+          WHERE label_point_z26_x BETWEEN %5$L AND %6$L
+            AND label_point_z26_y BETWEEN %7$L AND %8$L
+            AND area_3857 BETWEEN %3$L AND %4$L
       ),
       filtered_large_points AS (
           SELECT * FROM large_points
@@ -298,7 +296,7 @@ AS $$
         relation_ids
       FROM all_points
       ;
-      $f$, z, env_geom, wide_env_geom, min_area, max_area, min_rel_extent, max_rel_extent, z26_x_min, z26_x_max, z26_y_min, z26_y_max, wide_z26_x_min, wide_z26_x_max, wide_z26_y_min, wide_z26_y_max);
+      $f$, z, env_geom, min_area, max_area, z26_x_min, z26_x_max, z26_y_min, z26_y_max);
     END IF;
   END;
 $$
