@@ -190,6 +190,27 @@ AS $$
             AND label_point_z26_y BETWEEN %10$L AND %11$L
             AND area_3857 < %4$L
       ),
+      filtered_small_points AS (
+          SELECT * FROM small_points
+          WHERE tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+        UNION ALL
+          SELECT * FROM small_points
+          WHERE tags @> 'boundary => aboriginal_lands'
+            OR tags @> 'boundary => administrative'
+            OR tags @> 'boundary => protected_area'
+        UNION ALL
+          SELECT * FROM small_points
+          WHERE tags ? 'building'
+            AND (tags ? 'name' OR tags ? 'wikidata' OR %1$L >= 15)
+        UNION ALL
+          SELECT * FROM small_points
+          WHERE tags ? 'natural'
+            AND NOT tags @> 'natural => coastline'
+        UNION ALL
+          SELECT * FROM small_points
+          WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
+            AND is_node_or_explicit_area
+      ),
       low_zoom_small_points AS (
         SELECT * FROM small_points
         WHERE
@@ -208,58 +229,18 @@ AS $$
           OR tags @> 'aeroway => aerodrome'
           OR tags @> 'highway => motorway_junction'
       ),
-      ranked_small_points AS (
-        SELECT *,
-          -- Assume that a feature with a name (e.g. park, business, artwork) is more important than one without
-          -- (e.g. crossing, pole, gate). Features linked to Wikidata items are assumed to be notable regardless
-          (tags ? 'name' OR tags ? 'wikidata') AS is_notable
-        FROM small_points
-        WHERE 
-          tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
-          OR (
-            tags @> 'boundary => aboriginal_lands'
-            OR tags @> 'boundary => administrative'
-            OR tags @> 'boundary => protected_area'
-          ) OR (
-            tags ? 'building'
-            AND (tags ? 'name' OR tags ? 'wikidata' OR %1$L >= 15)
-          ) OR (
-            tags ? 'natural'
-            AND NOT tags @> 'natural => coastline'
-          ) OR (
-            tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
-            AND is_node_or_explicit_area
-          )
-      ),
-      -- Count the number of point-like features in this region. We use a region larger than the tile itself
-      -- in order to try and avoid sharp visual cutoffs at tile bounds. For performance, this is only an estimate
-      points_in_region AS (
-          SELECT count(*) AS total FROM node
-          WHERE z26_x BETWEEN %12$L AND %13$L
-            AND z26_y BETWEEN %14$L AND %15$L
-        UNION ALL
-          SELECT count(*) AS total FROM way_explicit_area
-          WHERE label_point_z26_x BETWEEN %12$L AND %13$L
-            AND label_point_z26_y BETWEEN %14$L AND %15$L
-        UNION ALL
-          SELECT count(*) AS total FROM way_no_explicit_geometry_type
-          WHERE label_point_z26_x BETWEEN %12$L AND %13$L
-            AND label_point_z26_y BETWEEN %14$L AND %15$L
-        UNION ALL
-          SELECT count(*) AS total FROM area_relation
-          WHERE label_point_z26_x BETWEEN %12$L AND %13$L
-            AND label_point_z26_y BETWEEN %14$L AND %15$L
-      ),
       point_region_stats AS (
-        SELECT sum(total) AS regional_point_count FROM points_in_region
+        SELECT count(*) AS filtered_small_point_count FROM filtered_small_points
       ),
       -- Only include small points if we don't think they will make the tile too big
       reduced_small_points AS (
           SELECT id, tags, geom, area_3857, osm_type
           FROM ranked_small_points, point_region_stats
-          WHERE regional_point_count < 150000
-            -- Include only notable features unless we have room to spare
-            AND (is_notable OR regional_point_count < 75000)
+          WHERE filtered_small_point_count < 16000
+            -- Include only notable features unless we have room to spare.
+            -- Assume that a feature with a name (e.g. park, business, artwork) is more important than one without
+            -- (e.g. crossing, pole, gate). Features linked to Wikidata items are assumed to be notable regardless.
+            AND (filtered_small_point_count < 8000 OR tags ? 'name' OR tags ? 'wikidata')
       ),
       large_points AS (
           SELECT id, tags, label_point AS geom, area_3857, true AS is_node_or_explicit_area, 'w' AS osm_type
@@ -281,20 +262,21 @@ AS $$
             AND area_3857 BETWEEN %4$L AND %5$L
       ),
       filtered_large_points AS (
-        SELECT * FROM large_points
-        WHERE
-          tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
-          OR (
-            tags @> 'boundary => aboriginal_lands'
+          SELECT * FROM large_points
+          WHERE tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+        UNION ALL
+          SELECT * FROM large_points
+          WHERE tags @> 'boundary => aboriginal_lands'
             OR tags @> 'boundary => administrative'
             OR tags @> 'boundary => protected_area'
-          ) OR (
-            tags ? 'natural'
+        UNION ALL
+          SELECT * FROM large_points
+          WHERE tags ? 'natural'
             AND NOT tags @> 'natural => coastline'
-          ) OR (
-            tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
+        UNION ALL
+          SELECT * FROM large_points
+          WHERE tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'highway', 'power', 'railway', 'telecom', 'waterway']
             AND is_node_or_explicit_area
-          )
       ),
       all_points AS (
           SELECT id, tags::jsonb, geom, area_3857, osm_type, NULL::int8[] AS relation_ids FROM low_zoom_small_points
