@@ -25,15 +25,15 @@ OSM2PGSQL_VERSION="2.2.0"
 OSM2PGSQL_DIR="/usr/local/osm2pgsql"
 OSM2PGSQL_BUILD_DIR="/usr/local/src/osm2pgsql"
 FLAT_NODES_FILE="$PERSISTENT_DIR/flatnodes"
-LUA_STYLE_FILE="$APP_DIR/lua/osm2pgsql_style_config.lua"
+LUA_STYLE_FILE="$APP_DIR/config/osm2pgsql_style_config.lua"
 
 MARTIN_VERSION="0.19.3"
-MARTIN_CONFIG_FILE="$APP_DIR/martin_config.yaml"
+MARTIN_CONFIG_FILE="$APP_DIR/config/martin_config.yaml"
 
 VARNISH_VERSION="8.0.0"
 VARNISH_DIR="/usr/local/varnish"
 VARNISH_BUILD_DIR="/usr/local/src/varnish"
-VARNISH_CONFIG_FILE="$APP_DIR/varnish_config.vcl"
+VARNISH_CONFIG_FILE="$APP_DIR/config/varnish_config.vcl"
 VARNISH_CACHE_RAM_GB="2"
 VARNISH_WORKING_DIR="/var/lib/varnish"
 
