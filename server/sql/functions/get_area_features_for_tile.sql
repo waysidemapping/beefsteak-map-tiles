@@ -18,7 +18,9 @@ AS $$
     min_extent := env_width / 1024.0;
     min_area := power(min_extent * 4, 2);
     simplify_tolerance := min_extent * 0.75;
-  IF z < 12 THEN
+  IF z <= 2 THEN
+    RETURN;
+  ELSIF z < 12 THEN
     RETURN QUERY EXECUTE FORMAT($f$
     WITH
     closed_ways AS (

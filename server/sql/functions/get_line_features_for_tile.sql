@@ -22,6 +22,77 @@ AS $$
     simplify_tolerance := min_way_extent * 0.75;
     IF z = 0 THEN
       RETURN;
+    ELSIF z <= 2 THEN
+      RETURN QUERY EXECUTE FORMAT($f$
+      WITH
+      way AS (
+          SELECT id, ''::hstore AS tags, geom
+          FROM untagged_way
+          WHERE geom && %2$L
+        UNION ALL
+          SELECT id, tags, geom
+          FROM way_explicit_area
+          WHERE geom && %2$L
+        UNION ALL
+          SELECT id, tags, geom
+          FROM way_explicit_line
+          WHERE geom && %2$L
+        UNION ALL
+          SELECT id, tags, geom
+          FROM way_no_explicit_geometry_type
+          WHERE geom && %2$L
+      ),
+      boundaries AS (
+        SELECT
+          id
+        FROM area_relation
+        WHERE geom && %2$L
+          AND tags @> 'boundary => administrative'
+          AND tags @> 'admin_level => 2'
+      ),
+      boundary_members AS (
+        SELECT
+          w.id AS id,
+          w.tags AS tags,
+          w.geom AS geom,
+          rw.member_role AS member_role,
+          r.id AS relation_id
+        FROM way w
+        JOIN way_relation_member rw ON w.id = rw.member_id
+        JOIN boundaries r ON rw.relation_id = r.id
+      ),
+      collapsed AS (
+        SELECT
+          ANY_VALUE(tags) AS tags,
+          COALESCE(jsonb_object_agg('m.' || relation_id::text, member_role) FILTER (WHERE relation_id IS NOT NULL), '{}'::jsonb) AS membership_attributes,
+          ANY_VALUE(geom) AS geom,
+          ARRAY_AGG(relation_id) AS relation_ids
+        FROM boundary_members
+        GROUP BY id
+      ),
+      tagged AS (
+        SELECT
+          slice(tags, ARRAY[{{LOW_ZOOM_LINE_KEY_LIST}}])::jsonb || membership_attributes AS tags,
+          geom,
+          relation_ids
+        FROM collapsed
+      ),
+      grouped_and_simplified AS (
+        SELECT
+          tags,
+          ST_Simplify(ST_LineMerge(ST_Multi(ST_Collect(geom))), %6$L, true) AS geom,
+          ANY_VALUE(relation_ids) AS relation_ids
+        FROM tagged
+        GROUP BY tags
+      )
+      SELECT
+        NULL::int8 AS id,
+        tags,
+        geom,
+        relation_ids
+      FROM grouped_and_simplified
+      ;
+      $f$, z, env_geom, min_way_extent, min_rel_extent,  min_area, simplify_tolerance);
     ELSIF z < 12 THEN
       RETURN QUERY EXECUTE FORMAT($f$
       WITH
@@ -103,8 +174,7 @@ AS $$
         WHERE geom && %2$L
           AND tags @> 'boundary => administrative'
           AND (
-            tags @> 'admin_level => 1'
-            OR tags @> 'admin_level => 2'
+            tags @> 'admin_level => 2'
             OR tags @> 'admin_level => 3'
             OR tags @> 'admin_level => 4'
             OR tags @> 'admin_level => 5'
