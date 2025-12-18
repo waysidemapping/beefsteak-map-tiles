@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -euo pipefail
+
+BASE_URL="http://127.0.0.1/beefsteak"
+
+max_zoom_level=5
+
+MAX_JOBS=10
+job_count=0
+
+script_start_ms=$(date +%s%3N)
+
+echo "Warming tiles for zoom levels 0 through $max_zoom_level"
+for (( z=0; z<=max_zoom_level; z++ )); do
+  max=$((2**z))
+  for x in $(seq 0 $((max-1))); do
+    for y in $(seq 0 $((max-1))); do
+      url="$BASE_URL/$z/$x/$y"
+      (
+        # Use curl to download tile and measure size in bytes and time in seconds
+        read tile_size tile_time <<< $(curl -sf -w "%{size_download} %{time_total}" -o /dev/null "$url")
+
+        # convert to milliseconds
+        tile_time_ms=$(echo "$tile_time" | awk -F. '{printf "%d", ($1 * 1000) + substr($2"000",1,3)}')
+
+        echo "Tile $z/$x/$y: $tile_size bytes, $tile_time_ms ms"
+        # write stats to file to aggregate synchronously later
+        echo "$url $tile_size $tile_time_ms" >> /tmp/tile_stats.txt
+      ) &
+
+      # Run a certain 
+      job_count=$((job_count + 1))
+      if ((job_count >= MAX_JOBS)); then
+        wait
+        job_count=0
+      fi
+
+    done
+  done
+done
+
+# wait for any remaining jobs
+wait
+
+script_end_ms=$(date +%s%3N)
+script_duration_ms=$((script_end_ms - script_start_ms))
+
+# compile stats
+total_size=0
+total_time_ms=0
+largest_tile_size=0
+largest_tile_url=""
+slowest_tile_time=0
+slowest_tile_url=""
+while read url size time_ms; do
+  if (( size > largest_tile_size )); then
+      largest_tile_size=$size
+      largest_tile_url="$url"
+  fi
+  if (( time_ms > slowest_tile_time )); then
+      slowest_tile_time=$time_ms
+      slowest_tile_url="$url"
+  fi
+  total_size=$((total_size + size))
+  total_time_ms=$((total_time_ms + time_ms))
+done < /tmp/tile_stats.txt
+
+rm /tmp/tile_stats.txt
+
+echo "Total size of all tiles: $total_size bytes"
+echo "Largest tile: $largest_tile_url at $largest_tile_size bytes"
+echo "Slowest tile: $slowest_tile_url at $slowest_tile_time ms"
+echo "Aggregate download time: $total_time_ms ms"
+echo "Total script time: $script_duration_ms ms"
