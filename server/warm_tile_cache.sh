@@ -19,12 +19,21 @@ for (( z=0; z<=max_zoom_level; z++ )); do
       url="$BASE_URL/$z/$x/$y"
       (
         # Use curl to download tile and measure size in bytes and time in seconds
-        read tile_size tile_time <<< $(curl -sf -w "%{size_download} %{time_total}" -o /dev/null "$url")
+        read tile_size tile_time http_code <<< \
+          $(curl -s -L \
+          -w "%{size_download} %{time_total} %{http_code}" \
+          -o /dev/null \
+          "$url")
+
+        if [[ "$http_code" != 2* ]]; then
+          echo "Unexpected response for $url (HTTP $http_code)"
+          exit 1
+        fi
 
         # convert to milliseconds
         tile_time_ms=$(echo "$tile_time" | awk -F. '{printf "%d", ($1 * 1000) + substr($2"000",1,3)}')
 
-        echo "Tile $z/$x/$y: $tile_size bytes, $tile_time_ms ms"
+        echo "$z/$x/$y: HTTP ${http_code}, $tile_size bytes, $tile_time_ms ms"
         # write stats to file to aggregate synchronously later
         echo "$url $tile_size $tile_time_ms" >> /tmp/tile_stats.txt
       ) &
