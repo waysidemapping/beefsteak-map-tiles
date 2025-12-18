@@ -33,6 +33,7 @@ MARTIN_CONFIG_FILE="$APP_DIR/config/martin_config.yaml"
 VARNISH_VERSION="8.0.0"
 VARNISH_DIR="/usr/local/varnish"
 VARNISH_BUILD_DIR="/usr/local/src/varnish"
+VARNISH_ETC_DIR="/usr/local/varnish/etc"
 VARNISH_CONFIG_FILE="$APP_DIR/config/varnish_config.vcl"
 VARNISH_CACHE_RAM_GB="2"
 VARNISH_WORKING_DIR="/var/lib/varnish/martin"
@@ -442,13 +443,19 @@ if [ ! -d "$VARNISH_WORKING_DIR" ]; then
     mkdir -p "$VARNISH_WORKING_DIR"
 fi
 
+if [ ! -d "$VARNISH_ETC_DIR" ]; then
+    mkdir -p "$VARNISH_ETC_DIR"
+    sudo head -c 32 /dev/urandom | base64 | sudo tee "$VARNISH_ETC_DIR/secret"
+    sudo chmod 600 "$VARNISH_ETC_DIR/secret"
+fi
+
 # start Varnish
 if ! pgrep -x varnishd >/dev/null 2>&1; then
     echo "Starting Varnish..."
     sudo "$VARNISH_DIR/sbin/varnishd" \
         -n "$VARNISH_WORKING_DIR" \
         -T 127.0.0.1:6082 \
-        -S /usr/local/varnish/etc/secret \
+        -S "$VARNISH_ETC_DIR/secret" \
         -a :80 \
         -f "$VARNISH_CONFIG_FILE" \
         -s "malloc,${VARNISH_CACHE_RAM_GB}G"
