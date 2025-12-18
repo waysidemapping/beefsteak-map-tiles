@@ -14,20 +14,27 @@ PLANET_URL="https://planet.openstreetmap.org/pbf/planet-latest.osm.pbf"
 # to load an extract, replace the above URL with something like "https://download.geofabrik.de/north-america/us/california-latest.osm.pbf"
 
 PG_VERSION="18"
-PG_CONF_PATH="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
 POSTGIS_MAJOR_VERSION="3"
+PG_CONF_PATH="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
+PG_DATA_DIR="$PERSISTENT_DIR/pg_data"
 DB_NAME="osm"
 DB_USER="osmuser"
 TABLE_PREFIX="planet_osm"
+
 OSM2PGSQL_VERSION="2.2.0"
 OSM2PGSQL_DIR="/usr/local/osm2pgsql"
+OSM2PGSQL_BUILD_DIR="/usr/local/src/osm2pgsql"
+FLAT_NODES_FILE="$PERSISTENT_DIR/flatnodes"
 LUA_STYLE_FILE="$APP_DIR/lua/osm2pgsql_style_config.lua"
 
-PG_DATA_DIR="$PERSISTENT_DIR/pg_data"
-FLAT_NODES_FILE="$PERSISTENT_DIR/flatnodes"
-
-MARTIN_CONFIG_FILE="$APP_DIR/martin_config.yaml"
 MARTIN_VERSION="0.19.3"
+MARTIN_CONFIG_FILE="$APP_DIR/martin_config.yaml"
+
+VARNISH_VERSION="8.0.0"
+VARNISH_DIR="/usr/local/varnish"
+VARNISH_BUILD_DIR="/usr/local/src/varnish"
+VARNISH_CONFIG_FILE="$APP_DIR/varnish_config.vcl"
+VARNISH_CACHE_RAM_GB="2"
 
 [[ "$ARCHITECTURE" == "x86_64" || "$ARCHITECTURE" == "aarch64" ]] && echo "Architecture: $ARCHITECTURE" || { echo "Unsupported architecture: $ARCHITECTURE"; exit 1; }
 
@@ -57,18 +64,14 @@ fi
 # we may not always deploy via the Docker image
 
 # Install wget: needed to fetch planetfile
-if command -v wget &> /dev/null; then
-    echo "wget is already installed."
-else
+if ! command -v wget >/dev/null 2>&1; then
     echo "wget not found, installing..."
     sudo apt update && sudo apt install -y wget
     command -v wget &> /dev/null && echo "wget successfully installed." || { echo "Failed to install wget."; exit 1; }
 fi
 
 # Install git: needed to clone repos
-if command -v git &> /dev/null; then
-    echo "git is already installed."
-else
+if ! command -v git >/dev/null 2>&1; then
     echo "git not found, installing..."
     sudo apt update && sudo apt install -y git
     command -v git &> /dev/null && echo "git successfully installed." || { echo "Failed to install git."; exit 1; }
@@ -88,25 +91,47 @@ else
     echo "Martin is already installed: $(martin --version)"
 fi
 
-# Need to do this every time unfortunately
-export PATH="${OSM2PGSQL_DIR}/bin:$PATH"
+# Install Varnish: the tile cache 
+if ! command -v "$VARNISH_DIR/sbin/varnishd" >/dev/null 2>&1; then
+    # We need to build osm2pgsql from source since the bundled version is too old
+    echo "Cloning and building Varnish $VARNISH_VERSION..."
+    
+    echo "Installing dependencies..."
+    sudo apt update
+    sudo apt install -y \
+        make \
+        automake \
+        autotools-dev \
+        libedit-dev \
+        libjemalloc-dev \
+        libncurses-dev \
+        libpcre2-dev \
+        libtool \
+        pkg-config \
+        python3-docutils \
+        python3-sphinx \
+        cpio
 
-is_osm2pgsql_not_installed() {
-    if command -v osm2pgsql >/dev/null 2>&1; then
-        INSTALLED_VERSION=$(osm2pgsql --version | grep -oP '\d+\.\d+\.\d+')
-        if [ "$INSTALLED_VERSION" == "$OSM2PGSQL_VERSION" ]; then
-            echo "osm2pgsql $OSM2PGSQL_VERSION is already installed."
-        else
-            echo "osm2pgsql is installed but version $INSTALLED_VERSION != $OSM2PGSQL_VERSION"
-        fi
-        return 1
-    else
-        echo "osm2pgsql is not installed."
-    fi
-    return 0
-}
+    mkdir -p "$VARNISH_BUILD_DIR"
+    cd "$VARNISH_BUILD_DIR"
+    wget "https://vinyl-cache.org/downloads/varnish-$VARNISH_VERSION.tgz"
+    tar xzf "varnish-$VARNISH_VERSION.tgz"
+    cd "varnish-$VARNISH_VERSION"
+    ./configure --prefix="$VARNISH_DIR"
+    make -j$(nproc)
+    sudo make install
 
-if is_osm2pgsql_not_installed; then
+    # return to script dir and clean up
+    cd "$APP_DIR"
+    rm -rf "$VARNISH_BUILD_DIR"
+
+    "$VARNISH_DIR/sbin/varnishd" -V
+
+    echo "Varnish $VARNISH_VERSION installed at $VARNISH_DIR"
+fi
+
+# Install osm2pgsql
+if ! command -v "$OSM2PGSQL_DIR/bin/osm2pgsql" >/dev/null 2>&1; then
     # We need to build osm2pgsql from source since the bundled version is too old
     echo "Cloning and building osm2pgsql $OSM2PGSQL_VERSION..."
     
@@ -118,8 +143,9 @@ if is_osm2pgsql_not_installed; then
         libopencv-dev libbz2-dev libpq-dev libproj-dev lua5.3 liblua5.3-dev \
         pandoc nlohmann-json3-dev pyosmium
 
-    git clone https://github.com/openstreetmap/osm2pgsql.git
-    cd osm2pgsql
+    mkdir "$OSM2PGSQL_BUILD_DIR"
+    cd "$OSM2PGSQL_BUILD_DIR"
+    git clone https://github.com/openstreetmap/osm2pgsql.git .
     git fetch --tags
     git checkout "tags/$OSM2PGSQL_VERSION" -b "build-$OSM2PGSQL_VERSION"
     mkdir build
@@ -128,13 +154,13 @@ if is_osm2pgsql_not_installed; then
     make -j$(nproc)
     make install
 
-    cd ..
-    cd ..
-    rm -rf "osm2pgsql"
+    # return to script dir and clean up
+    cd "$APP_DIR"
+    rm -rf "$OSM2PGSQL_BUILD_DIR"
 
-    osm2pgsql --version
+    "$OSM2PGSQL_DIR/bin/osm2pgsql" --version
 
-    echo "osm2pgsql $OSM2PGSQL_VERSION installed at $OSM2PGSQL_DIR."
+    echo "osm2pgsql $OSM2PGSQL_VERSION installed at $OSM2PGSQL_DIR"
 fi
 
 # Install PostgreSQL
@@ -318,7 +344,7 @@ else
 
     echo "Running import..."
     # These options are documented but are not needed with flex output: --merc --multi-geometry --keep-coastlines
-    sudo -u "$DB_USER" env PATH="${OSM2PGSQL_DIR}/bin:$PATH" osm2pgsql \
+    sudo -u "$DB_USER" "$OSM2PGSQL_DIR/bin/osm2pgsql" \
         -d "$DB_NAME" \
         -U "$DB_USER" \
         --create \
@@ -411,5 +437,12 @@ fi
 # In order to pass validation, we have to do this after the database has been populated 
 /bin/bash "$APP_DIR/update_sql_functions.sh"
 
-# start tileserver
+# start Varnish
+if ! pgrep -x varnishd >/dev/null 2>&1; then
+    echo "Starting Varnish..."
+    sudo  "$VARNISH_DIR/sbin/varnishd" -a :80 -f "$VARNISH_CONFIG_FILE" -s "malloc,${VARNISH_CACHE_RAM_GB}G"
+    echo "Varnish started."
+fi
+
+# start Martin
 sudo -u "$DB_USER" -- /usr/local/bin/martin --config "$MARTIN_CONFIG_FILE"

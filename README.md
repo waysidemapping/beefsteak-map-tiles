@@ -34,10 +34,11 @@ Beefsteak map tiles aren't for everyone. If you don't need Beefsteak's power and
 
 Beefsteak strives to have minimal dependencies. It is built atop the following open source projects:
 
-- [Martin](https://github.com/maplibre/martin): vector map tileserver
-- [osm2pgsql](https://github.com/osm2pgsql-dev/osm2pgsql): OSM data importer for Postgres
-- [PostGIS](https://postgis.net): geospatial extension for Postgres
 - [OpenStreetMap](https://www.openstreetmap.org/about/) (OSM): free, collaborative, global geospatial database
+- [PostGIS](https://postgis.net): geospatial extension for Postgres
+- [osm2pgsql](https://github.com/osm2pgsql-dev/osm2pgsql): OSM data importer for Postgres
+- [Martin](https://github.com/maplibre/martin): vector map tileserver
+- [Vinyl HTTP Cache](https://vinyl-cache.org/): tile caching layer
 
 That's about it. You won't find shims such as Natural Earth, Wikidata, or Microsoft Buildings.
 
@@ -124,7 +125,7 @@ docker build -t beefsteak-tileserver:latest -f Dockerfile .
 To create and start a container using the Docker image, run: 
 
 ```
-docker run --name beefsteak-dev-container -p 3000:3000 --mount type=bind,src=./server,dst=/usr/src/app --mount type=bind,src=./tmp,dst=/var/lib/app beefsteak-tileserver:latest
+docker run --name beefsteak-dev-container -p 3000:3000 -p 3001:80 --mount type=bind,src=./server,dst=/usr/src/app --mount type=bind,src=./tmp,dst=/var/lib/app beefsteak-tileserver:latest
 ```
 
 The first `--mount` is required to copy over the `/server` directory to the container. Any changes to these files will be immediately synced between the host and the container. The second `--mount` is optional but is convenient for managing intermediate files (which may be quite large) on the host system.

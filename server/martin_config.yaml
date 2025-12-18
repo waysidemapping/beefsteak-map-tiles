@@ -2,7 +2,9 @@
 keep_alive: 75
 
 # The socket address to bind [default: 0.0.0.0:3000]
-listen_addresses: '0.0.0.0:3000'
+# Note: using 0.0.0.0 automatically makes the Martin endpoint accessible to external connections (the Internet),
+# while using 127.0.0.1 limits traffic to internal server connections (like Varnish)
+listen_addresses: '127.0.0.1:3000'
 
 # Set TileJSON URL path prefix. This overrides the default of respecting the X-Rewrite-URL header.
 # Only modifies the JSON (TileJSON) returned, martins' API-URLs remain unchanged. If you need to rewrite URLs, please use a reverse proxy.
