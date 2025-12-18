@@ -35,6 +35,7 @@ VARNISH_DIR="/usr/local/varnish"
 VARNISH_BUILD_DIR="/usr/local/src/varnish"
 VARNISH_CONFIG_FILE="$APP_DIR/varnish_config.vcl"
 VARNISH_CACHE_RAM_GB="2"
+VARNISH_WORKING_DIR="/var/lib/varnish"
 
 [[ "$ARCHITECTURE" == "x86_64" || "$ARCHITECTURE" == "aarch64" ]] && echo "Architecture: $ARCHITECTURE" || { echo "Unsupported architecture: $ARCHITECTURE"; exit 1; }
 
@@ -437,10 +438,18 @@ fi
 # In order to pass validation, we have to do this after the database has been populated 
 /bin/bash "$APP_DIR/update_sql_functions.sh"
 
+if [ ! -d "$VARNISH_WORKING_DIR" ]; then
+    mkdir -p "$VARNISH_WORKING_DIR"
+fi
+
 # start Varnish
 if ! pgrep -x varnishd >/dev/null 2>&1; then
     echo "Starting Varnish..."
-    sudo  "$VARNISH_DIR/sbin/varnishd" -a :80 -f "$VARNISH_CONFIG_FILE" -s "malloc,${VARNISH_CACHE_RAM_GB}G"
+    sudo "$VARNISH_DIR/sbin/varnishd" \
+        -n "$VARNISH_WORKING_DIR" \
+        -a :80 \
+        -f "$VARNISH_CONFIG_FILE" \
+        -s "malloc,${VARNISH_CACHE_RAM_GB}G"
     echo "Varnish started."
 fi
 
