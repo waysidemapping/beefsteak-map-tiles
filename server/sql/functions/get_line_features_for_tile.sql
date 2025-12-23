@@ -104,11 +104,11 @@ AS $$
           AND tags @> 'boundary => administrative'
           AND (
             tags @> 'admin_level => 2'
-            OR tags @> 'admin_level => 3'
-            OR tags @> 'admin_level => 4'
-            OR tags @> 'admin_level => 5'
             OR (
-              %1$L >= 6 AND tags @> 'admin_level => 6'
+              %1$L >= 5 AND (tags @> 'admin_level => 3' OR tags @> 'admin_level => 4')
+            )
+            OR (
+              %1$L >= 6 AND (tags @> 'admin_level => 5' OR tags @> 'admin_level => 6')
             )
           )
       ),
