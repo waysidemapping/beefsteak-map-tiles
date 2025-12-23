@@ -60,6 +60,7 @@ AS $$
         FROM way w
         JOIN way_relation_member rw ON w.id = rw.member_id
         JOIN boundaries r ON rw.relation_id = r.id
+        WHERE NOT w.tags @> 'maritime => yes'
       ),
       collapsed AS (
         SELECT
