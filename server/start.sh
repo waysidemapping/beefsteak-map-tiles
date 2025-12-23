@@ -22,7 +22,9 @@ PG_CONF_PATH="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
 PG_DATA_DIR="$PERSISTENT_DIR/pg_data"
 DB_NAME="osm"
 DB_USER="osmuser"
-TABLE_PREFIX="planet_osm"
+DB_TABLE_PREFIX="planet_osm"
+PG_MAX_PARALLEL_WORKERS="4"
+PG_MAX_PARALLEL_WORKERS_PER_GATHER="2"
 
 OSM2PGSQL_VERSION="2.2.0"
 OSM2PGSQL_DIR="/usr/local/osm2pgsql"
@@ -32,8 +34,9 @@ LUA_STYLE_FILE="$APP_DIR/config/osm2pgsql_style_config.lua"
 
 MARTIN_VERSION="0.19.3"
 MARTIN_CONFIG_FILE="$APP_DIR/config/martin_config.yaml"
-MARTIN_WORKERS=$(( NUM_CORES > 1 ? NUM_CORES - 1 : 1 ))
-MARTIN_POOL_SIZE=2
+RESERVED_CORES=$(( PG_MAX_PARALLEL_WORKERS + 2 ))
+MARTIN_WORKERS=$(( NUM_CORES > RESERVED_CORES ? NUM_CORES - RESERVED_CORES : 1 ))
+MARTIN_POOL_SIZE="2"
 
 VARNISH_VERSION="8.0.0"
 VARNISH_DIR="/usr/local/varnish"
@@ -251,9 +254,9 @@ fi
 
 # Load data into database
 TABLES_EXISTING=$(sudo -u postgres psql -d "$DB_NAME" -tAc \
-  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '${TABLE_PREFIX}_%';")
+  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '${DB_TABLE_PREFIX}_%';")
 if [[ "$TABLES_EXISTING" -gt 0 ]]; then
-    echo "osm2pgsql import detected — $TABLES_EXISTING tables found with prefix '${TABLE_PREFIX}_'."
+    echo "osm2pgsql import detected — $TABLES_EXISTING tables found with prefix '${DB_TABLE_PREFIX}_'."
 else
 
     # Set import params dynamically based on available memory
@@ -290,8 +293,8 @@ else
         ["max_wal_size"]="${MAX_WAL_SIZE_GB}GB"
         ["checkpoint_completion_target"]="0.9"
         ["max_connections"]="100"
-        ["max_parallel_workers"]="0"
-        ["max_parallel_workers_per_gather"]="0"
+        ["max_parallel_workers"]="$PG_MAX_PARALLEL_WORKERS"
+        ["max_parallel_workers_per_gather"]="$PG_MAX_PARALLEL_WORKERS_PER_GATHER"
         ["max_wal_senders"]="0"
         ["random_page_cost"]="1.0"
         ["effective_io_concurrency"]="8"
@@ -341,7 +344,7 @@ else
         --slim \
         --extra-attributes \
         $NODE_CACHE_PARAMS \
-        --prefix="$TABLE_PREFIX" \
+        --prefix="$DB_TABLE_PREFIX" \
         --output=flex \
         --style="$LUA_STYLE_FILE" \
         "$PLANET_FILE"
@@ -380,8 +383,8 @@ declare -A PARAMS=(
     ["max_wal_size"]="${MAX_WAL_SIZE_GB}GB"
     ["checkpoint_completion_target"]="0.9"
     ["max_connections"]="100"
-    ["max_parallel_workers"]="0"
-    ["max_parallel_workers_per_gather"]="0"
+    ["max_parallel_workers"]="$PG_MAX_PARALLEL_WORKERS"
+    ["max_parallel_workers_per_gather"]="$PG_MAX_PARALLEL_WORKERS_PER_GATHER"
     ["max_wal_senders"]="5"
     ["random_page_cost"]="1.0"
     ["effective_io_concurrency"]="128"
