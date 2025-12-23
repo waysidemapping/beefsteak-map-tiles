@@ -5,13 +5,25 @@ set -euo pipefail
 BASE_URL="http://127.0.0.1/beefsteak"
 
 max_zoom_level=6
+max_zoom_max_x=$((2**max_zoom_level-1))
 
 max_concurrent_jobs=10
 jobs_running=0
 
+echo "Summary of tiles to warm..."
+total_tiles=0
+for (( z=0; z<=max_zoom_level; z++ )); do
+  tiles_per_row=$((2**z))
+  max_x=$((tiles_per_row-1))
+  total_tiles_for_zoom=$((tiles_per_row**2))
+  total_tiles=$((total_tiles+total_tiles_for_zoom))
+  echo "Zoom ${z}: $total_tiles_for_zoom tiles ($z/0/0 - $z/$max_x/$max_x)"
+done
+echo "Total: $total_tiles tiles (0/0/0 - $max_zoom_level/$max_zoom_max_x/$max_zoom_max_x)"
+echo "Begin warming..."
+
 script_start_ms=$(date +%s%3N)
 
-echo "Warming tiles for zoom levels 0 through $max_zoom_level"
 for (( z=0; z<=max_zoom_level; z++ )); do
   max=$((2**z))
   for x in $(seq 0 $((max-1))); do
@@ -76,7 +88,8 @@ done < /tmp/tile_stats.txt
 
 rm /tmp/tile_stats.txt
 
-echo "Total size of all tiles: $total_size bytes"
+echo "Warming complete..."
+echo "Total size of all warm tiles: $total_size bytes"
 echo "Largest tile: $largest_tile_url at $largest_tile_size bytes"
 echo "Slowest tile: $slowest_tile_url at $slowest_tile_time ms"
 echo "Aggregate download time: $total_time_ms ms"

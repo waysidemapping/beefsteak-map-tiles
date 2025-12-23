@@ -35,7 +35,7 @@ If your boot volume is 2 TB or greater to start, then you don't need to worry ab
 Once you've acquired a server, configured your drives, and installed Ubuntu, open your terminal and `ssh` into it:
 
 ```
-ssh root@the.server.ip.address
+ssh root@your.servers.ip.address
 ```
 
 For security and compatibility, you'll probably want to run updates after a fresh Ubuntu install:
@@ -59,11 +59,13 @@ Next, install `git` if your distribution doesn't include it by default:
 sudo apt update && sudo apt install -y git
 ```
 
-Now, clone the Beefsteak repo onto your server. To make advanced customizations, you can fork the repo and clone your fork instead. Run:
+Now, clone the Beefsteak repo onto your server:
 
 ```
 git clone https://github.com/waysidemapping/beefsteak-map-tiles.git /usr/src/app
 ```
+
+To make advanced customizations, you can fork the repo and clone your fork instead.
 
 From here on it's recommended to use a terminal multiplexer like [`tmux`](https://github.com/tmux/tmux/wiki) to manage your session. This will ensure the setup and serve processes are not interrupted even if you get disconnected.
 
@@ -71,7 +73,7 @@ From here on it's recommended to use a terminal multiplexer like [`tmux`](https:
 tmux new
 ```
 
-You can detach from this session (type <key>Ctrl</key><key>B</key>, then <key>D</key>) or reattach (`tmux attach`) at any time.
+You can detach from this session (type <kbd>Ctrl</kbd><kbd>B</kbd>, then <kbd>D</kbd>) or reattach (`tmux attach`) at any time.
 
 Now you're ready to run the [start.sh](/server/start.sh) script:
 
@@ -89,11 +91,38 @@ This is a long script designed to automate a lot of the finicky details around s
 - Use osm2pgsql to import the planet into Postgres using the Beefsteak table definitions (this is the longest part)
 - Run post-import follow-up commands in Postgres needed for Beefsteak (this can also be long)
 - Load Beefsteak's tile rendering functions into Postgres
+- Start the Varnish cache
 - Start the Martin tileserver
 
 The whole process may take up to 36 hours depending on your machine. Generally you can rerun the start script at any time to restart the server, and completed steps will be skipped.
 
-For total control, or if you run into issues, you can choose to dissect the start script yourself and run each command manually.
+For total control, or if you run into issues, you can choose to dissect the script yourself and run each command manually.
+
+Eventually you should see a message like:
+
+```
+[2025-12-18T20:28:26Z INFO  martin] Martin has been started on 127.0.0.1:3000.
+```
+
+At this point you can leave Martin running and exit the `tmux` session by typing <kbd>Ctrl</kbd><kbd>B</kbd>, then <kbd>D</kbd>.
+
+You can test that Martin is running. This should give you `HTTP/1.1 200 OK`:
+
+```
+curl -I http://127.0.0.1:3000/beefsteak
+```
+
+However, this should not be directly accessible externaly. This should fail:
+
+```
+curl -I http://your.servers.ip.address:3000/beefsteak
+```
+
+The Varnish endpoint should succeed with `HTTP/1.1 200 OK`:
+
+```
+curl -I http://your.servers.ip.address/beefsteak
+```
 
 ### Troubleshooting
 
@@ -101,4 +130,31 @@ If your initial data import started but failed to complete, you may have incompl
 
 ```
 sudo -u postgres psql --command="DROP DATABASE osm;"
+```
+
+## Warming the cache
+
+Even though Beefsteak supports minutely updates from OSM, some tile caching is still required to achieve decent performance. This is particularly true at low zoom levels, where some tiles can take a few minutes to render. An [optional script](/server/warm_tile_cache.sh) is included to "warm up" the cache with low zoom tiles. You'll probably want to run this after loading the database but before zooming and panning around your map:
+
+```
+bash /usr/src/app/server/warm_tile_cache.sh
+```
+
+Tiles are cached in memory, not disk, so whenever your restart your server you'll need to run this script again. Low zoom tiles are cached longer than high zoom tiles (see the [config](/server/config/varnish_config.vcl) for details).
+
+You can test the Varnish cache by requesting the same tile twice:
+
+```
+curl -I http://127.0.0.1:3000/beefsteak/14/4948/6103
+```
+
+## Updating
+
+```
+rm -rf /usr/src/app
+git clone https://github.com/waysidemapping/beefsteak-map-tiles.git /usr/src/app
+```
+
+```
+bash /usr/src/app/server/update_sql_functions.sh
 ```
