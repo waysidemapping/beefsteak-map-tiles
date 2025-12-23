@@ -21,15 +21,19 @@ sub vcl_hash {
 sub vcl_recv {
     if (req.url ~ "^/beefsteak/") {
         set req.backend_hint = martin;
-        
+
+        # Always use cache even if client requests fresh
+        unset req.http.Cache-Control;
+        unset req.http.Pragma;
+        # Remove cookies
+        unset req.http.Cookie;
+
         # Remove query parameters
         set req.url = regsub(req.url, "\?.*$", "");
         # Remove trailing slash
         set req.url = regsub(req.url, "/$", "");
         # Collapse multiple slashes into one
         set req.url = regsuball(req.url, "//+", "/");
-        # Remove cookies
-        unset req.http.Cookie;
 
         return (hash);
     }
@@ -69,13 +73,25 @@ sub vcl_backend_response {
     }
 }
 
-sub vcl_deliver {
-    set resp.http.Access-Control-Allow-Origin = "*";
-    if (obj.hits > 0) {
-        set resp.http.X-Cache = "HIT";
-    } else {
-        set resp.http.X-Cache = "MISS";
+sub vcl_hit {
+    if (req.url ~ "^/beefsteak/") {
+        if (obj.ttl <= 0s && obj.grace > 0s) {
+            set req.http.X-Cache = "GRACE-HIT";
+        } else {
+            set req.http.X-Cache = "HIT";
+        }
     }
+}
+
+sub vcl_miss {
+    if (req.url ~ "^/beefsteak/") {
+        set req.http.X-Cache = "MISS";
+    }
+}
+
+sub vcl_deliver {
+    set resp.http.X-Cache = req.http.X-Cache;
+    set resp.http.Access-Control-Allow-Origin = "*";
 }
 
 sub vcl_backend_error {
