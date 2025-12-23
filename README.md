@@ -38,7 +38,7 @@ Beefsteak strives to have minimal dependencies. It is built atop the following o
 - [PostGIS](https://postgis.net): geospatial extension for Postgres
 - [osm2pgsql](https://github.com/osm2pgsql-dev/osm2pgsql): OSM data importer for Postgres
 - [Martin](https://github.com/maplibre/martin): vector map tileserver
-- [Vinyl HTTP Cache](https://vinyl-cache.org/): tile caching layer
+- [Vinyl HTTP Cache](https://vinyl-cache.org/) (previously Varnish): tile caching layer
 
 That's about it. You won't find shims such as Natural Earth, Wikidata, or Microsoft Buildings.
 
