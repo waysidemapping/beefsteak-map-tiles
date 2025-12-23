@@ -4,7 +4,7 @@ set -euo pipefail
 
 BASE_URL="http://127.0.0.1/beefsteak"
 
-max_zoom_level=5
+max_zoom_level=6
 
 max_concurrent_jobs=10
 jobs_running=0
