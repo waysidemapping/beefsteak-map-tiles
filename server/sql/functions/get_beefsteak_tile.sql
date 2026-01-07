@@ -65,7 +65,12 @@ AS $function_body$
       SELECT
         id * 10 + (CASE WHEN osm_type = 'n' THEN 1 WHEN osm_type = 'w' THEN 2 WHEN osm_type = 'r' THEN 3 ELSE 0 END) AS feature_id,
         tags,
-        -- area_3857,
+        CASE
+          WHEN area_3857 = 0 THEN null::integer
+          -- We only care about relative visual area, so in order to reduce impact on tile size,
+          -- round projected area (in square meters) to two significant digits and then round off decimal places
+          ELSE round(round(area_3857::numeric, (2 - floor(log10(abs(area_3857))) - 1)::integer))::integer
+        END AS "c.area",
         ST_AsMVTGeom(geom, ST_TileEnvelope(z, x, y), 4096, 64, true) AS geom
       FROM point_features
     ),
