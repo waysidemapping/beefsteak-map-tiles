@@ -77,7 +77,7 @@ AS $function_body$
           -- For medium-sized features, round to two significant figure (e.g. 142558.9132 -> 140000)
           WHEN area_3857 <= 1000000 THEN round(area_3857::numeric, (1 - floor(log10(abs(area_3857))))::integer)::real
           -- For everything larger, round to three significant figures (e.g.  142558913.2 -> 143000000)
-          -- (This has minimal impact since points of larger features are shown only at lower zoom levels, which include fewer total points.)
+          -- (This has minimal impact since points of larger features are included only in lower zoom tiles, which include fewer total points.)
           ELSE round(area_3857::numeric, (2 - floor(log10(abs(area_3857))))::integer)::real
         END AS "c.area",
         ST_AsMVTGeom(geom, ST_TileEnvelope(z, x, y), 4096, 64, true) AS geom
