@@ -69,13 +69,16 @@ AS $function_body$
         -- This is useful for things like prioritizing labels of larger feature over smaller features
         -- (e.g. with "symbol-sort-key" in MapLibre).
         CASE
-          -- Don't include area property for really small stuff.
+          -- Don't include the area property for really small features (basically treat them like nodes).
           WHEN area_3857 < 1 THEN null::real
           -- We can reduce the impact on tile size by binning together similar values.
-          -- For smallish features, round to one significant figure (e.g. 14.25589 -> 10)
-          WHEN area_3857 <= 100 THEN round(area_3857::numeric, (0 - floor(log10(abs(area_3857))))::integer)::real
-          -- For everything larger, round to two significant figures (e.g. 14255.89 -> 14000)
-          ELSE round(area_3857::numeric, (1 - floor(log10(abs(area_3857))))::integer)::real
+          -- For smallish features, round to one significant figure (e.g.     142.5589132 -> 100)
+          WHEN area_3857 <= 1000 THEN round(area_3857::numeric, (0 - floor(log10(abs(area_3857))))::integer)::real
+          -- For medium-sized features, round to two significant figure (e.g. 142558.9132 -> 140000)
+          WHEN area_3857 <= 1000000 THEN round(area_3857::numeric, (1 - floor(log10(abs(area_3857))))::integer)::real
+          -- For everything larger, round to three significant figures (e.g.  142558913.2 -> 143000000)
+          -- (This has minimal impact since points of larger features are shown only at lower zoom levels, which include fewer total points.)
+          ELSE round(area_3857::numeric, (2 - floor(log10(abs(area_3857))))::integer)::real
         END AS "c.area",
         ST_AsMVTGeom(geom, ST_TileEnvelope(z, x, y), 4096, 64, true) AS geom
       FROM point_features
