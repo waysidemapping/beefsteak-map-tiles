@@ -65,12 +65,17 @@ AS $function_body$
       SELECT
         id * 10 + (CASE WHEN osm_type = 'n' THEN 1 WHEN osm_type = 'w' THEN 2 WHEN osm_type = 'r' THEN 3 ELSE 0 END) AS feature_id,
         tags,
+        -- Include a rough estimate of relative visual area in projected units (square meters).
+        -- This is useful for things like prioritizing labels of larger feature over smaller features
+        -- (e.g. with "symbol-sort-key" in MapLibre).
         CASE
-          -- Don't include area property for really small stuff
+          -- Don't include area property for really small stuff.
           WHEN area_3857 < 1 THEN null::real
-          -- We only care about relative visual area, so in order to reduce impact on tile size,
-          -- round projected area (in square meters) to one significant figure (e.g. 14255.89 -> 10000)
-          ELSE round(area_3857::numeric, (0 - floor(log10(abs(area_3857))))::integer)::real
+          -- We can reduce the impact on tile size by binning together similar values.
+          -- For smallish features, round to one significant figure (e.g. 14.25589 -> 10)
+          WHEN area_3857 <= 100 THEN round(area_3857::numeric, (0 - floor(log10(abs(area_3857))))::integer)::real
+          -- For everything larger, round to two significant figures (e.g. 14255.89 -> 14000)
+          ELSE round(area_3857::numeric, (1 - floor(log10(abs(area_3857))))::integer)::real
         END AS "c.area",
         ST_AsMVTGeom(geom, ST_TileEnvelope(z, x, y), 4096, 64, true) AS geom
       FROM point_features
