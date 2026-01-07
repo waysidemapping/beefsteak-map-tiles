@@ -21,6 +21,7 @@ leaf_cycle
 leaf_type
 leisure
 man_made
+maritime
 military
 natural
 office
