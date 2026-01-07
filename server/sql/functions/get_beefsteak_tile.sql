@@ -66,10 +66,13 @@ AS $function_body$
         id * 10 + (CASE WHEN osm_type = 'n' THEN 1 WHEN osm_type = 'w' THEN 2 WHEN osm_type = 'r' THEN 3 ELSE 0 END) AS feature_id,
         tags,
         CASE
-          WHEN area_3857 = 0 THEN null::integer
+          -- Don't include area property for really small stuff
+          WHEN area_3857 < 1 THEN null::real
           -- We only care about relative visual area, so in order to reduce impact on tile size,
-          -- round projected area (in square meters) to two significant digits and then round off decimal places
-          ELSE round(round(area_3857::numeric, (2 - floor(log10(abs(area_3857))) - 1)::integer))::integer
+          -- round projected area (in square meters) to one significant digit
+          WHEN area_3857 < 1000 THEN round(area_3857::numeric, (0 - floor(log10(abs(area_3857))))::integer)::real
+          -- Use two significant digits for larger things
+          ELSE round(area_3857::numeric, (1 - floor(log10(abs(area_3857))))::integer)::real
         END AS "c.area",
         ST_AsMVTGeom(geom, ST_TileEnvelope(z, x, y), 4096, 64, true) AS geom
       FROM point_features
