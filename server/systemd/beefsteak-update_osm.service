@@ -4,7 +4,7 @@ Description=Keep osm2pgsql database up-to-date
 [Service]
 WorkingDirectory=/tmp
 ExecStart=bash /usr/src/app/server/update_osm.sh
-StandardOutput=append:/var/log/osm2pgsql-updates.log
+StandardOutput=append:/var/log/beefsteak-update_osm.log
 User=root
 Type=simple
 Restart=on-failure
