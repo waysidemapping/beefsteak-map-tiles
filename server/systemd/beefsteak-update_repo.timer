@@ -1,0 +1,10 @@
+[Unit]
+Description=Trigger a Beefsteak update
+
+[Timer]
+Unit=beefsteak-update_repo.service
+OnBootSec=10
+OnUnitActiveSec=30min
+
+[Install]
+WantedBy=timers.target

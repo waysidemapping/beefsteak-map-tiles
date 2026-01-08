@@ -4,7 +4,7 @@ set -x # echo on
 set -euo pipefail
 
 # Directory of this script
-APP_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(dirname "$0")"
 
 ARCHITECTURE=$(uname -m)
 NUM_CORES=$(nproc)
@@ -30,10 +30,10 @@ OSM2PGSQL_VERSION="2.2.0"
 OSM2PGSQL_DIR="/usr/local/osm2pgsql"
 OSM2PGSQL_BUILD_DIR="/usr/local/src/osm2pgsql"
 FLAT_NODES_FILE="$PERSISTENT_DIR/flatnodes"
-LUA_STYLE_FILE="$APP_DIR/config/osm2pgsql_style_config.lua"
+LUA_STYLE_FILE="$SCRIPT_DIR/config/osm2pgsql_style_config.lua"
 
 MARTIN_VERSION="0.19.3"
-MARTIN_CONFIG_FILE="$APP_DIR/config/martin_config.yaml"
+MARTIN_CONFIG_FILE="$SCRIPT_DIR/config/martin_config.yaml"
 RESERVED_CORES=$(( PG_MAX_PARALLEL_WORKERS + 1 )) # reserve one core for Varnish, DB updates, etc. 
 MARTIN_WORKERS=$(( NUM_CORES > RESERVED_CORES ? NUM_CORES - RESERVED_CORES : 1 ))
 MARTIN_POOL_SIZE="$MARTIN_WORKERS"
@@ -42,7 +42,7 @@ VARNISH_VERSION="8.0.0"
 VARNISH_DIR="/usr/local/varnish"
 VARNISH_BUILD_DIR="/usr/local/src/varnish"
 VARNISH_ETC_DIR="/usr/local/varnish/etc"
-VARNISH_CONFIG_FILE="$APP_DIR/config/varnish_config.vcl"
+VARNISH_CONFIG_FILE="$SCRIPT_DIR/config/varnish_config.vcl"
 VARNISH_CACHE_RAM_GB="2"
 VARNISH_WORKING_DIR="/var/lib/varnish/martin"
 
@@ -129,7 +129,7 @@ if ! command -v "$VARNISH_DIR/sbin/varnishd" >/dev/null 2>&1; then
     sudo make install
 
     # return to script dir and clean up
-    cd "$APP_DIR"
+    cd "$SCRIPT_DIR"
     rm -rf "$VARNISH_BUILD_DIR"
 
     "$VARNISH_DIR/sbin/varnishd" -V
@@ -162,7 +162,7 @@ if ! command -v "$OSM2PGSQL_DIR/bin/osm2pgsql" >/dev/null 2>&1; then
     make install
 
     # return to script dir and clean up
-    cd "$APP_DIR"
+    cd "$SCRIPT_DIR"
     rm -rf "$OSM2PGSQL_BUILD_DIR"
 
     "$OSM2PGSQL_DIR/bin/osm2pgsql" --version
@@ -350,12 +350,18 @@ else
         "$PLANET_FILE"
 
     echo "Running post-import SQL queries..."
-    sudo -u "$DB_USER" psql "$DB_NAME" --file="$APP_DIR/sql/post_init_or_update/area_relation.sql" &
-    wait
+    sudo -u "$DB_USER" psql "$DB_NAME" --file="$SCRIPT_DIR/sql/post_init_or_update/area_relation.sql"
 
     # We need to manually do this since we turned off autovacuum for the import
+    echo "Running manual SQL vacuum..."
     sudo -u "$DB_USER" psql "$DB_NAME" --command="VACUUM;"
 fi
+
+# This is safe to do multiple times per docs
+echo "Running osm2pgsql-replication init..."
+sudo -u "$DB_USER" "$OSM2PGSQL_DIR/bin/osm2pgsql-replication" init \
+    -d "$DB_NAME" \
+    -U "$DB_USER"
 
 # Set tileserving params dynamically based on available memory
 SHARED_BUFFERS_MB=$(( MEM_KB * 25 / 100 / 1024 ))   # 25% RAM
@@ -415,7 +421,7 @@ fi
 
 # Reinstall functions every time in case something changed.
 # In order to pass validation, we have to do this after the database has been populated 
-/bin/bash "$APP_DIR/update_sql_functions.sh"
+/bin/bash "$SCRIPT_DIR/update_sql_functions.sh"
 
 if [ ! -d "$VARNISH_WORKING_DIR" ]; then
     mkdir -p "$VARNISH_WORKING_DIR"

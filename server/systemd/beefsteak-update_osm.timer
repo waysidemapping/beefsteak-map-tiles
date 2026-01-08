@@ -1,0 +1,10 @@
+[Unit]
+Description=Trigger a osm2pgsql database update
+
+[Timer]
+Unit=beefsteak-update_osm.service
+OnBootSec=60
+OnUnitActiveSec=60
+
+[Install]
+WantedBy=timers.target

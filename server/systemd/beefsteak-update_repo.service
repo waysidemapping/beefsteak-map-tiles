@@ -1,0 +1,9 @@
+[Unit]
+Description=Keep Beefsteak up-to-date
+
+[Service]
+WorkingDirectory=/tmp
+ExecStart=bash /usr/src/app/server/update_repo.sh
+StandardOutput=append:/var/log/beefsteak-updates.log
+User=root
+Type=simple
