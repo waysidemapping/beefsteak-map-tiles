@@ -148,7 +148,9 @@ if ! command -v "$OSM2PGSQL_DIR/bin/osm2pgsql" >/dev/null 2>&1; then
         make cmake g++ libboost-dev \
         libexpat1-dev zlib1g-dev libpotrace-dev \
         libopencv-dev libbz2-dev libpq-dev libproj-dev lua5.3 liblua5.3-dev \
-        pandoc nlohmann-json3-dev pyosmium
+        pandoc nlohmann-json3-dev \
+        pyosmium python3-psycopg
+    # pyosmium and python3-psycopg are required for osm2pgsql-replication even if we didn't have to build osm2pgsql from source 
 
     mkdir "$OSM2PGSQL_BUILD_DIR"
     cd "$OSM2PGSQL_BUILD_DIR"
