@@ -5,6 +5,7 @@ expressway
 highway
 informal
 intermittent
+location
 man_made
 maritime
 natural
