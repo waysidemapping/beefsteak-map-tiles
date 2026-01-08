@@ -21,7 +21,10 @@ if [ "$(ps -p 1 -o comm=)" != "systemd" ]; then
     exit 0
 fi
 
-SRC_DIR=./systemd
+# Directory of this script
+SCRIPT_DIR="$(dirname "$0")"
+
+SRC_DIR="$SCRIPT_DIR/systemd"
 DST_DIR=/etc/systemd/system
 PREFIX=beefsteak-
 
