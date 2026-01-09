@@ -5,6 +5,7 @@ set -euo pipefail
 
 # Directory of this current script
 SCRIPT_DIR="$(dirname "$0")"
+
 DB_NAME="osm"
 DB_USER="osmuser"
 
