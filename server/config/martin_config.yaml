@@ -36,10 +36,6 @@ base_path: /
 # - Sprites: `sprites.cache_size_mb`
 cache_size_mb: 0
 
-# Allows overriding the size of the tile cache.
-# Defaults to `cache_size_mb` / 2
-tile_cache_size_mb: 0
-
 # If the client accepts multiple compression formats, and the tile source is not pre-compressed, which compression should be used. `gzip` is faster, but `brotli` is smaller, and may be faster with caching.  Default could be different depending on Martin version.
 preferred_encoding: gzip
 
