@@ -357,13 +357,13 @@ else
     # We need to manually do this since we turned off autovacuum for the import
     echo "Running manual SQL vacuum..."
     sudo -u "$DB_USER" psql "$DB_NAME" --command="VACUUM;"
-fi
 
-# This is safe to do multiple times per docs
-echo "Running osm2pgsql-replication init..."
-sudo -u "$DB_USER" "$OSM2PGSQL_DIR/bin/osm2pgsql-replication" init \
-    -d "$DB_NAME" \
-    -U "$DB_USER"
+    # We need to do this once in order to run `update` later, but it's safe to repeat
+    echo "Running osm2pgsql-replication init..."
+    sudo -u "$DB_USER" "$OSM2PGSQL_DIR/bin/osm2pgsql-replication" init \
+        -d "$DB_NAME" \
+        -U "$DB_USER"
+fi
 
 # Set tileserving params dynamically based on available memory
 SHARED_BUFFERS_MB=$(( MEM_KB * 25 / 100 / 1024 ))   # 25% RAM
