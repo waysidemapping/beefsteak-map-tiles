@@ -42,7 +42,7 @@ done < "$EXPIRE_FILE"
 # Output: pipe-separated ranges like "10-12|15-16|18"
 numbers_to_ranges() {
     local nums=("$@")
-    local start end range_str=""
+    local start="" end="" range_str=""
 
     for n in "${nums[@]}"; do
         if [ -z "$start" ]; then
