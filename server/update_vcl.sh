@@ -48,7 +48,7 @@ DESIRED_VCL_NAME="vcl_$(date +%s)"
 # Save the name of the active config
 ACTIVE_VCL=$(
     $VARNISHADM -T "$ADMIN_ADDR" -S "$SECRET" vcl.list |
-    awk '$1 == "active" {print $3}'
+    awk '$1 == "active" {print $5}'
 )
 
 # Sense check
