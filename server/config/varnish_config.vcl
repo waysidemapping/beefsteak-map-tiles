@@ -74,7 +74,7 @@ sub vcl_backend_response {
                 set beresp.grace = 1h;
             }
             # Don't keep cached tiles around after the grace period
-            set beresp.keep = 0;
+            set beresp.keep = 0s;
 
             set beresp.http.Cache-Control = "public";
 
