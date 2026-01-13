@@ -45,31 +45,41 @@ sub vcl_backend_response {
     if (beresp.status >= 200 && beresp.status < 300) {
         if (bereq.url ~ "^/beefsteak/([0-9]+)/([0-9]+)/([0-9]+)(\\..*)?$") {
 
+            # Set the url as a header so the ban lurker can access it
+            set beresp.http.x-url = bereq.url;
+
             # Always gzip no matter what the client requested (won't double compress content)
             set beresp.do_gzip = true;
 
             # Set different cache policies depending on the zoom level
             # Match zoom 0-6
             if (bereq.url ~ "^/beefsteak/[0-6]/") {
-                # Cache complex tiles for a good long while
+                # Low-zoom tiles are expensive to render, but would also need to be re-rendered all the time if
+                # set to expire from incoming edits, so just cache them for awhile without using bans
                 set beresp.ttl = 1d;
-                # If martin is overwhelemed then use the cache for even longer
+                # If martin is overwhelemed then continue to use the cache for awhile
                 set beresp.grace = 7d;
-            # Match zoom 7-12
-            } else if (bereq.url ~ "^/beefsteak/([7-9]|1[0-2])") {
-                set beresp.ttl = 1h;
-                set beresp.grace = 7d;
-            # Match all other zooms
-            } else {
-                set beresp.ttl = 5m;
+            # Match zoom 7-15
+            # These zooms should correspond to the define_expire_output parameters in the osm2pgsql lua style
+            } else if (bereq.url ~ "^/beefsteak/([7-9]|1[0-5])") {
+                # For mid and high zooms we'll primarily use bans to expire stale tiles based on incoming edits,
+                # so we can set a really long ttl
+                set beresp.ttl = 30d;
                 set beresp.grace = 1d;
+            # Match all other zooms (very high zooms)
+            } else {
+                # For very high zoom tiles it's not efficient to calculate and implement bans,
+                # but they're cheap to render, so just set a really short ttl
+                set beresp.ttl = 1m;
+                set beresp.grace = 1h;
             }
-            # Don't keep cached tiles around much after the grace period
-            set beresp.keep = 5m;
+            # Don't keep cached tiles around after the grace period
+            set beresp.keep = 0;
+
             set beresp.http.Cache-Control = "public";
 
             # Treat all variants as the same object
-            unset beresp.http.Vary; 
+            unset beresp.http.Vary;
         }
     } else {
         # Don't cache error codes or other unexpected results
@@ -94,6 +104,8 @@ sub vcl_miss {
 }
 
 sub vcl_deliver {
+    # Remove interal header
+    unset resp.http.x-url;
     set resp.http.X-Cache = req.http.X-Cache;
     set resp.http.Access-Control-Allow-Origin = "*";
 }

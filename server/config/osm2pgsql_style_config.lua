@@ -1,9 +1,20 @@
+local expire_output = osm2pgsql.define_expire_output({
+    -- These zooms should correspond to those in the cache ttl logic in the Varnish VCL config file.
+    -- (values are inclusive)
+    minzoom = 7,
+    maxzoom = 15,
+    -- This file is ingested by process_expired_tiles.sh
+    filename = '/var/lib/app/expired_tiles.txt'
+})
+
 local node_table = osm2pgsql.define_table({
     name = 'node',
     ids = { type = 'node', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
-        { column = 'geom', type = 'point', proj = '3857', not_null = true },
+        { column = 'geom', type = 'point', proj = '3857', not_null = true, expire = {
+            { output = expire_output, buffer = 0 }
+        }},
         { column = 'z26_x', type = 'int', not_null = true },
         { column = 'z26_y', type = 'int', not_null = true }
     },
@@ -19,6 +30,7 @@ local untagged_way_table = osm2pgsql.define_table({
     name = 'untagged_way',
     ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
     columns = {
+        -- no need to set expire here since all notable untagged ways are already accounted for in one of the relation tables
         { column = 'geom', type = 'linestring', proj = '3857', not_null = true }
     },
     indexes = {
@@ -32,7 +44,9 @@ local way_explicit_line_table = osm2pgsql.define_table({
     ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
-        { column = 'geom', type = 'linestring', proj = '3857', not_null = true },
+        { column = 'geom', type = 'linestring', proj = '3857', not_null = true, expire = {
+            { output = expire_output, buffer = 0 }
+        }},
         { column = 'extent', type = 'real', not_null = true }
     },
     indexes = {
@@ -48,7 +62,9 @@ local way_explicit_area_table = osm2pgsql.define_table({
     ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
-        { column = 'geom', type = 'polygon', proj = '3857', not_null = true },
+        { column = 'geom', type = 'polygon', proj = '3857', not_null = true, expire = {
+            { output = expire_output, buffer = 0, mode = 'full-area' }
+        }},
         { column = 'area_3857', type = 'real', not_null = true },
         { column = 'extent', type = 'real', not_null = true },
         { column = 'label_point', type = 'point', proj = '3857' },
@@ -71,7 +87,9 @@ local way_no_explicit_geometry_type_table = osm2pgsql.define_table({
     ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
-        { column = 'geom', type = 'polygon', proj = '3857', not_null = true },
+        { column = 'geom', type = 'polygon', proj = '3857', not_null = true, expire = {
+            { output = expire_output, buffer = 0, mode = 'full-area' }
+        }},
         { column = 'area_3857', type = 'real', not_null = true },
         { column = 'extent', type = 'real', not_null = true },
         { column = 'label_point', type = 'point', proj = '3857' },
@@ -93,6 +111,7 @@ local coastline_table = osm2pgsql.define_table({
     name = 'coastline',
     ids = { type = 'way', id_column = 'id', create_index = 'primary_key' },
     columns = {
+        -- no need to set expire here since all coastlines are already in one of the way tables 
         { column = 'geom', type = 'linestring', proj = '3857', not_null = true },
         { column = 'area_3857', type = 'real' }
     },
@@ -108,7 +127,9 @@ local area_relation_table = osm2pgsql.define_table({
     ids = { type = 'relation', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
-        { column = 'geom', type = 'multipolygon', proj = '3857', not_null = true },
+        { column = 'geom', type = 'multipolygon', proj = '3857', not_null = true, expire = {
+            { output = expire_output, buffer = 0, mode = 'full-area' }
+        }},
         { column = 'extent', type = 'real' },
         { column = 'area_3857', type = 'real' },
         { column = 'label_node_id', type = 'int8' },
@@ -133,7 +154,9 @@ local non_area_relation_table = osm2pgsql.define_table({
     ids = { type = 'relation', id_column = 'id', create_index = 'primary_key' },
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
-        { column = 'geom', type = 'geometrycollection', proj = '3857' },
+        { column = 'geom', type = 'geometrycollection', proj = '3857', expire = {
+            { output = expire_output, buffer = 0 }
+        }},
         { column = 'extent', type = 'real' },
         { column = 'label_node_id', type = 'int8' }
     },

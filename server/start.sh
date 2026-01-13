@@ -43,7 +43,7 @@ VARNISH_DIR="/usr/local/varnish"
 VARNISH_BUILD_DIR="/usr/local/src/varnish"
 VARNISH_ETC_DIR="/usr/local/varnish/etc"
 VARNISH_CONFIG_FILE="$SCRIPT_DIR/config/varnish_config.vcl"
-VARNISH_CACHE_RAM_GB="2"
+VARNISH_CACHE_RAM_GB="6"
 VARNISH_WORKING_DIR="/var/lib/varnish/martin"
 
 [[ "$ARCHITECTURE" == "x86_64" || "$ARCHITECTURE" == "aarch64" ]] && echo "Architecture: $ARCHITECTURE" || { echo "Unsupported architecture: $ARCHITECTURE"; exit 1; }

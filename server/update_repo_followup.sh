@@ -8,4 +8,6 @@ set -euo pipefail
 
 bash /usr/src/app/server/update_sql_functions.sh
 
+bash /usr/src/app/server/update_vcl.sh
+
 bash /usr/src/app/server/update_systemd.sh
