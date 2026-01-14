@@ -3,7 +3,7 @@ local expire_output = osm2pgsql.define_expire_output({
     -- (values are inclusive)
     minzoom = 7,
     maxzoom = 15,
-    -- This file is ingested by process_expired_tiles.sh
+    -- This file is ingested by process_expired_tiles.py
     filename = '/var/lib/app/expired_tiles.txt'
 })
 

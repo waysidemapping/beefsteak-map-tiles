@@ -20,4 +20,4 @@ duration=$((end - start))
 echo "Duration: $duration seconds"
 
 # script runs its own echos
-python3 "$SCRIPT_DIR/process_expired_tiles.sh"
+python3 "$SCRIPT_DIR/process_expired_tiles.py"
