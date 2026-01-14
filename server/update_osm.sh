@@ -13,7 +13,7 @@ DB_USER="osmuser"
 
 echo "Running osm2pgsql-replication update..."
 # other osm2pgsql parameters are remembered from the import step
-"$OSM2PGSQL_DIR/bin/osm2pgsql-replication" update \
+sudo -u "$DB_USER" "$OSM2PGSQL_DIR/bin/osm2pgsql-replication" update \
     -d "$DB_NAME" \
     -U "$DB_USER" \
     --post-processing "$SCRIPT_DIR/update_osm_followup.sh"
