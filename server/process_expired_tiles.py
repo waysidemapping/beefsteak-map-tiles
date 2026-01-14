@@ -1,5 +1,5 @@
 # We're doing this in python since it's much more performant than bash
-# with memory and subprocesses for this type of work.
+# this type of work due to memory and subprocess considerations.
 
 import subprocess
 from collections import defaultdict
@@ -12,7 +12,7 @@ ADMIN_ADDR = "127.0.0.1:6082"
 SECRET = "/usr/local/varnish/etc/secret"
 EXPIRE_FILE = "/var/lib/app/expired_tiles.txt"
 PREFIX = "/beefsteak"
-MAX_REGEX_LEN = 20000  # max length of regex string per ban
+MAX_REGEX_LEN = 15000  # max length of regex string per ban
 
 def timestamp():
     return strftime("%Y-%m-%d %H:%M:%S", localtime())

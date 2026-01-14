@@ -2,7 +2,7 @@ local expire_output = osm2pgsql.define_expire_output({
     -- These zooms should correspond to those in the cache ttl logic in the Varnish VCL config file.
     -- (values are inclusive)
     minzoom = 7,
-    maxzoom = 15,
+    maxzoom = 14,
     -- This file is ingested by process_expired_tiles.py
     filename = '/var/lib/app/expired_tiles.txt'
 })
@@ -155,6 +155,7 @@ local non_area_relation_table = osm2pgsql.define_table({
     columns = {
         { column = 'tags', type = 'hstore', not_null = true },
         { column = 'geom', type = 'geometrycollection', proj = '3857', expire = {
+            -- need to set expire to account for relation tag changes even though geometry changes are already covered by way/node tables
             { output = expire_output, buffer = 0 }
         }},
         { column = 'extent', type = 'real' },

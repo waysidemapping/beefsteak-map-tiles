@@ -59,9 +59,9 @@ sub vcl_backend_response {
                 set beresp.ttl = 1d;
                 # If martin is overwhelemed then continue to use the cache for awhile
                 set beresp.grace = 7d;
-            # Match zoom 7-15
+            # Match zoom 7-14
             # These zooms should correspond to the define_expire_output parameters in the osm2pgsql lua style
-            } else if (bereq.url ~ "^/beefsteak/([7-9]|1[0-5])") {
+            } else if (bereq.url ~ "^/beefsteak/([7-9]|1[0-4])") {
                 # For mid and high zooms we'll primarily use bans to expire stale tiles based on incoming edits,
                 # so we can set a really long ttl
                 set beresp.ttl = 5m;
