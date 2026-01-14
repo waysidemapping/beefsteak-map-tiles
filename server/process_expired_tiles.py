@@ -27,6 +27,7 @@ start_time = time()
 # Read tiles and group by z/x
 y_by_zx = defaultdict(list)   # key: (z, x), value: list of y
 x_by_z = defaultdict(set)     # key: z, value: set of x
+tile_count_by_z = defaultdict(int)
 
 tiles_to_expire_count = sum(1 for _ in expire_path.open())
 print(f"{timestamp()} - Processing {tiles_to_expire_count} expired tiles...")
@@ -40,6 +41,7 @@ with expire_path.open() as f:
         z, x, y = int(z_str), int(x_str), int(y_str)
         y_by_zx[(z, x)].append(y)
         x_by_z[z].add(x)
+        tile_count_by_z[z] += 1
 
 for key in y_by_zx:
     y_by_zx[key].sort()
@@ -64,12 +66,24 @@ total_bans = 0
 
 # --- Issue bans per zoom level ---
 for z, x_set in x_by_z.items():
+
+    if tile_count_by_z[z] > 1000000:
+        full_regex = f"^{PREFIX}/{z}/"
+        print(f"{timestamp()} - Issuing blanket ban for z {z} since expired tileset is very large: {tile_count_by_z[z]} tiles...")
+        subprocess.run([
+            VARNISHADM,
+            "-T", ADMIN_ADDR,
+            "-S", SECRET,
+            "ban", f"obj.http.x-url ~ {full_regex} && obj.ttl > 0s"
+        ], check=True)
+        total_bans += 1
+        continue
+
     x_list = sorted(x_set)
     total_x = len(x_list)
     start_idx = 0
 
     while start_idx < total_x:
-        batch_start_time = time()
         regex_parts_list = []
         current_length = 0
 
@@ -90,8 +104,7 @@ for z, x_set in x_by_z.items():
         regex_parts = "|".join(regex_parts_list)
         full_regex = f"^{PREFIX}/{z}/({regex_parts})$"
 
-        batch_end_time = time()
-        print(f"{timestamp()} - Running ban for z {z}, x indices {start_idx}-{i-1}, regex length {current_length}, calculated in {batch_end_time - batch_start_time:.2f} s...")
+        print(f"{timestamp()} - Issuing ban for z {z}, x indices {start_idx}-{i-1}, regex length {current_length}...")
         subprocess.run([
             VARNISHADM,
             "-T", ADMIN_ADDR,
