@@ -432,7 +432,10 @@ fi
 if [ ! -d "$VARNISH_ETC_DIR" ]; then
     mkdir -p "$VARNISH_ETC_DIR"
     sudo head -c 32 /dev/urandom | base64 | sudo tee "$VARNISH_ETC_DIR/secret"
-    sudo chmod 600 "$VARNISH_ETC_DIR/secret"
+    sudo groupadd varnishadmin
+    sudo usermod -aG varnishadmin "$DB_USER"
+    sudo chgrp varnishadmin "$VARNISH_ETC_DIR/secret"
+    sudo chmod 640 "$VARNISH_ETC_DIR/secret"
 fi
 
 # start Varnish
