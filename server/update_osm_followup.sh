@@ -20,4 +20,6 @@ duration=$((end - start))
 echo "Duration: $duration seconds"
 
 # script runs its own echos
-python3 "$SCRIPT_DIR/process_expired_tiles.py"
+# python3 "$SCRIPT_DIR/process_expired_tiles.py"
+# don't worry about tile expiration for now
+rm /var/lib/app/expired_tiles.txt

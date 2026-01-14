@@ -64,7 +64,7 @@ sub vcl_backend_response {
             } else if (bereq.url ~ "^/beefsteak/([7-9]|1[0-5])") {
                 # For mid and high zooms we'll primarily use bans to expire stale tiles based on incoming edits,
                 # so we can set a really long ttl
-                set beresp.ttl = 30d;
+                set beresp.ttl = 5m;
                 set beresp.grace = 1d;
             # Match all other zooms (very high zooms)
             } else {
