@@ -19,10 +19,5 @@ echo "End:   $(date '+%Y-%m-%d %H:%M:%S')"
 duration=$((end - start))
 echo "Duration: $duration seconds"
 
-start=$(date +%s)
-echo "Start: $(date '+%Y-%m-%d %H:%M:%S')"
 # script runs its own echos
-bash "$SCRIPT_DIR/process_expired_tiles.sh"
-echo "End:   $(date '+%Y-%m-%d %H:%M:%S')"
-duration=$((end - start))
-echo "Duration: $duration seconds"
+python3 "$SCRIPT_DIR/process_expired_tiles.sh"
