@@ -24,7 +24,8 @@ fi
 declare -A y_by_zx
 declare -A x_by_z
 
-echo "Processing expired tiles..."
+tiles_to_expire_count=$(wc -l < $EXPIRE_FILE)
+echo "Processing $tiles_to_expire_count expired tiles..."
 
 # Read and organize expired tiles
 while IFS= read -r tile; do
