@@ -60,6 +60,8 @@ def numbers_to_ranges(nums):
 
 ranges_by_zx = {key: numbers_to_ranges(vals) for key, vals in y_by_zx.items()}
 
+total_bans = 0
+
 # --- Issue bans per zoom level ---
 for z, x_set in x_by_z.items():
     x_list = sorted(x_set)
@@ -88,16 +90,15 @@ for z, x_set in x_by_z.items():
         regex_parts = "|".join(regex_parts_list)
         full_regex = f"^{PREFIX}/{z}/({regex_parts})$"
 
-        print(f"{timestamp()} - Running ban for z {z}, x indices {start_idx}-{i-1}...")
+        batch_end_time = time()
+        print(f"{timestamp()} - Running ban for z {z}, x indices {start_idx}-{i-1}, regex length {current_length}, calculated in {batch_end_time - batch_start_time:.2f} s...")
         subprocess.run([
             VARNISHADM,
             "-T", ADMIN_ADDR,
             "-S", SECRET,
             "ban", f"obj.http.x-url ~ {full_regex} && obj.ttl > 0s"
         ], check=True)
-
-        batch_end_time = time()
-        print(f"{timestamp()} - Batch duration: {batch_end_time - batch_start_time:.2f} seconds")
+        total_bans += 1
 
         start_idx = i
 
@@ -105,5 +106,4 @@ for z, x_set in x_by_z.items():
 expire_path.unlink()
 
 end_time = time()
-print(f"{timestamp()} - Done processing expired tiles")
-print(f"{timestamp()} - Total duration: {end_time - start_time:.2f} seconds")
+print(f"{timestamp()} - Processed {tiles_to_expire_count} expired tiles with {total_bans} ban(s) in {end_time - start_time:.2f} s")
