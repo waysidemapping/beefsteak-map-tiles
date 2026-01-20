@@ -212,11 +212,9 @@ AS $$
           AND NOT tags ? 'service'
         ) OR (
           tags ?| ARRAY['aerialway', 'aeroway', 'barrier', 'power', 'railway', 'route', 'telecom']
-          AND %1$L >= 13
         ) OR (
           tags ?| ARRAY['man_made', 'natural']
           AND is_explicit_line
-          AND %1$L >= 13
         ) OR (
           tags @> 'natural => coastline'
         ) OR (
