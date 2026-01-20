@@ -219,7 +219,6 @@ AS $$
           AND %1$L >= 13
         ) OR (
           tags @> 'natural => coastline'
-          AND %1$L >= 13
         ) OR (
           tags ?| ARRAY['golf']
           AND is_explicit_line
