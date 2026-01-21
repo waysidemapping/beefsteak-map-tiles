@@ -33,7 +33,7 @@ LUA_STYLE_FILE="$SCRIPT_DIR/config/osm2pgsql_style_config.lua"
 MARTIN_VERSION="0.19.3"
 MARTIN_CONFIG_FILE="$SCRIPT_DIR/config/martin_config.yaml"
 MARTIN_WORKERS=6
-MARTIN_POOL_SIZE=8
+MARTIN_POOL_SIZE=6
 
 VARNISH_VERSION="8.0.0"
 VARNISH_DIR="/usr/local/varnish"
