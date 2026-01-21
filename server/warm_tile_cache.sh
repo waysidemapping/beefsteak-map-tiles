@@ -4,10 +4,25 @@ set -euo pipefail
 
 BASE_URL="http://127.0.0.1/beefsteak"
 
+VARNISHADM="/usr/local/varnish/bin/varnishadm"
+ADMIN_ADDR="127.0.0.1:6082"
+SECRET="/usr/local/varnish/etc/secret"
+# Check that varnish is running
+if ! $VARNISHADM -T "$ADMIN_ADDR" -S "$SECRET" ping >/dev/null 2>&1; then
+    echo "Varnish not running or admin interface unavailable, exiting"
+    exit 0
+fi
+
 max_zoom_level=6
 max_zoom_max_x=$((2**max_zoom_level-1))
 
-max_concurrent_jobs=10
+max_concurrent_jobs=${max_concurrent_jobs:-1}
+
+if ! [[ "$max_concurrent_jobs" =~ ^[1-9][0-9]*$ ]]; then
+  echo "max_concurrent_jobs must 1 or greater"
+  exit 1
+fi
+
 jobs_running=0
 
 echo "Summary of tiles to warm..."

@@ -1,0 +1,9 @@
+[Unit]
+Description=Warm the Beefsteak tile cache
+
+[Service]
+WorkingDirectory=/tmp
+ExecStart=bash /usr/src/app/server/warm_tile_cache.sh
+StandardOutput=append:/var/log/beefsteak-warm_tile_cache.log
+User=root
+Type=simple

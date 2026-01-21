@@ -1,0 +1,10 @@
+[Unit]
+Description=Trigger a Beefsteak tile warming
+
+[Timer]
+Unit=beefsteak-warm_tile_cache.service
+OnBootSec=60
+OnUnitActiveSec=90min
+
+[Install]
+WantedBy=timers.target
