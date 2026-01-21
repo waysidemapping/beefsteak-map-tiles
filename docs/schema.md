@@ -104,9 +104,9 @@ This table show top-level tag support in Beefsteak tiles. A checkmark (✔︎) m
 
 | OSM key | `point` layer | `line` layer | `area` layer | `relation` layer | Closed way implies area | Irregularities |
 |---|---|---|---|---|---|---|
+|`advertising`        |✔︎| |✔︎| |Yes|
 |`aerialway`          |✔︎|✔︎|✔︎| |No |
 |`aeroway`            |✔︎|✔︎|✔︎| |No |
-|`advertising`        |✔︎| |✔︎| |Yes|
 |`amenity`            |✔︎| |✔︎| |Yes|
 |`area:highway`       | | |✔︎| |Yes|
 |`barrier`            |✔︎|✔︎|✔︎| |No |
