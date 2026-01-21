@@ -87,7 +87,6 @@ hgv
 highest_point
 highway
 hiking
-historic
 horse
 hot_water
 hov

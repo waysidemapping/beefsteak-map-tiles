@@ -120,7 +120,6 @@ This table show top-level tag support in Beefsteak tiles. A checkmark (✔︎) m
 |`golf`               |✔︎|✔︎|✔︎| |Yes|
 |`healthcare`         |✔︎| |✔︎| |Yes|
 |`highway`            |✔︎|✔︎|✔︎| |No |
-|`historic`           |✔︎| |✔︎| |Yes|
 |`indoor`             |✔︎|✔︎|✔︎| |Yes|
 |`information`        |✔︎| |✔︎| |Yes|
 |`landuse`            |✔︎| |✔︎| |Yes|

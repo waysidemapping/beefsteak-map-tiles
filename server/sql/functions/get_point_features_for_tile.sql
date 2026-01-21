@@ -137,7 +137,7 @@ AS $$
       ),
       filtered_large_points AS (
           SELECT * FROM large_points
-          WHERE tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+          WHERE tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
         UNION ALL
           SELECT * FROM large_points
           WHERE tags @> 'boundary => aboriginal_lands'
@@ -200,7 +200,7 @@ AS $$
       ),
       filtered_small_points AS (
           SELECT * FROM small_points
-          WHERE tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+          WHERE tags ?| ARRAY['advertising', 'amenity', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
         UNION ALL
           SELECT * FROM small_points
           WHERE tags @> 'boundary => aboriginal_lands'
@@ -276,7 +276,7 @@ AS $$
       ),
       filtered_large_points AS (
           SELECT * FROM large_points
-          WHERE tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'historic', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
+          WHERE tags ?| ARRAY['advertising', 'amenity', 'building', 'club', 'craft', 'education', 'emergency', 'golf', 'healthcare', 'indoor', 'information', 'landuse', 'leisure', 'man_made', 'miltary', 'office', 'place', 'playground', 'public_transport', 'shop', 'tourism']
         UNION ALL
           SELECT * FROM large_points
           WHERE tags @> 'boundary => aboriginal_lands'

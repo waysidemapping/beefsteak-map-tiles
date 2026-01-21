@@ -13,7 +13,6 @@ emergency
 golf
 healthcare
 highway
-historic
 information
 intermittent
 landuse
