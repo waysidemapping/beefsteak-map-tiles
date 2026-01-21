@@ -23,8 +23,6 @@ PG_DATA_DIR="$PERSISTENT_DIR/pg_data"
 DB_NAME="osm"
 DB_USER="osmuser"
 DB_TABLE_PREFIX="planet_osm"
-PG_MAX_PARALLEL_WORKERS="4"
-PG_MAX_PARALLEL_WORKERS_PER_GATHER="2"
 
 OSM2PGSQL_VERSION="2.2.0"
 OSM2PGSQL_DIR="/usr/local/osm2pgsql"
@@ -34,9 +32,8 @@ LUA_STYLE_FILE="$SCRIPT_DIR/config/osm2pgsql_style_config.lua"
 
 MARTIN_VERSION="0.19.3"
 MARTIN_CONFIG_FILE="$SCRIPT_DIR/config/martin_config.yaml"
-RESERVED_CORES=$(( PG_MAX_PARALLEL_WORKERS + 1 )) # reserve one core for Varnish, DB updates, etc. 
-MARTIN_WORKERS=$(( NUM_CORES > RESERVED_CORES ? NUM_CORES - RESERVED_CORES : 1 ))
-MARTIN_POOL_SIZE="$MARTIN_WORKERS"
+MARTIN_WORKERS=6
+MARTIN_POOL_SIZE=8
 
 VARNISH_VERSION="8.0.0"
 VARNISH_DIR="/usr/local/varnish"
@@ -295,8 +292,9 @@ else
         ["max_wal_size"]="${MAX_WAL_SIZE_GB}GB"
         ["checkpoint_completion_target"]="0.9"
         ["max_connections"]="100"
-        ["max_parallel_workers"]="$PG_MAX_PARALLEL_WORKERS"
-        ["max_parallel_workers_per_gather"]="$PG_MAX_PARALLEL_WORKERS_PER_GATHER"
+        ["max_worker_processes"]="12"
+        ["max_parallel_workers"]="6"
+        ["max_parallel_workers_per_gather"]="3"
         ["max_wal_senders"]="0"
         ["random_page_cost"]="1.0"
         ["effective_io_concurrency"]="8"
@@ -365,65 +363,11 @@ else
         -U "$DB_USER"
 fi
 
-# Set tileserving params dynamically based on available memory
-SHARED_BUFFERS_MB=$(( MEM_KB * 25 / 100 / 1024 ))   # 25% RAM
-MAINTENANCE_MB=$(( MEM_KB * 5 / 100 / 1024 ))       # 5% RAM
-AUTOVAC_MB=$(( MEM_KB * 2 / 100 / 1024 ))           # 2% RAM
-EFFECTIVE_CACHE_MB=$(( MEM_KB * 75 / 100 / 1024 ))  # 75% RAM
-
-AVAILABLE_BYTES=$(df --output=avail -B1 "$PG_DATA_DIR" | tail -n1)
-AVAILABLE_TB=$((AVAILABLE_BYTES / 1024 / 1024 / 1024 / 1024))
-
-MIN_WAL_SIZE_GB=4
-MAX_WAL_SIZE_GB=16
-
-declare -A PARAMS=(
-    ["shared_buffers"]="${SHARED_BUFFERS_MB}MB"
-    ["work_mem"]="64MB"                           
-    ["maintenance_work_mem"]="${MAINTENANCE_MB}MB"
-    ["autovacuum_work_mem"]="${AUTOVAC_MB}MB"
-    ["effective_cache_size"]="${EFFECTIVE_CACHE_MB}MB"
-    ["wal_level"]="replica"
-    ["synchronous_commit"]="on"
-    ["full_page_writes"]="on"
-    ["checkpoint_timeout"]="15min"
-    ["min_wal_size"]="${MIN_WAL_SIZE_GB}GB"
-    ["max_wal_size"]="${MAX_WAL_SIZE_GB}GB"
-    ["checkpoint_completion_target"]="0.9"
-    ["max_connections"]="100"
-    ["max_parallel_workers"]="$PG_MAX_PARALLEL_WORKERS"
-    ["max_parallel_workers_per_gather"]="$PG_MAX_PARALLEL_WORKERS_PER_GATHER"
-    ["max_wal_senders"]="5"
-    ["random_page_cost"]="1.0"
-    ["effective_io_concurrency"]="128"
-    ["temp_buffers"]="32MB"
-    ["autovacuum"]="on"
-    ["jit"]="off"
-)
-
-CONFIG_UPDATED=0
-for key in "${!PARAMS[@]}"; do
-    value="${PARAMS[$key]}"
-    # Check if value is already as desired
-    if grep -Eq "^[[:space:]]*${key}[[:space:]]*=[[:space:]]*${value}\b" "$PG_CONF_PATH"; then
-        continue
-    fi
-    # Remove any existing lines for this parameter (commented or active)
-    sudo sed -i "/^[[:space:]]*#\?[[:space:]]*${key}[[:space:]]*=/d" "$PG_CONF_PATH"
-    # Append desired parameter
-    echo "${key} = ${value}" | sudo tee -a "$PG_CONF_PATH" >/dev/null
-    CONFIG_UPDATED=1
-done
-
-if [ "$CONFIG_UPDATED" -eq 1 ]; then
-    # Restart postgres so our config file changes take effect
-    sudo service postgresql restart
-    until pg_isready > /dev/null 2>&1; do sleep 1; done
-fi
+bash "$SCRIPT_DIR/update_postgres_config.sh"
 
 # Reinstall functions every time in case something changed.
 # In order to pass validation, we have to do this after the database has been populated 
-/bin/bash "$SCRIPT_DIR/update_sql_functions.sh"
+bash "$SCRIPT_DIR/update_sql_functions.sh"
 
 if [ ! -d "$VARNISH_WORKING_DIR" ]; then
     mkdir -p "$VARNISH_WORKING_DIR"
