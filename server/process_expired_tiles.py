@@ -1,5 +1,5 @@
 # We're doing this in python since it's much more performant than bash
-# this type of work due to memory and subprocess considerations.
+# for this type of work due to memory and subprocess considerations.
 
 import subprocess
 from collections import defaultdict

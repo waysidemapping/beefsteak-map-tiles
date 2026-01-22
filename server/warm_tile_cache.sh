@@ -13,7 +13,7 @@ if ! $VARNISHADM -T "$ADMIN_ADDR" -S "$SECRET" ping >/dev/null 2>&1; then
     exit 0
 fi
 
-max_zoom_level=6
+max_zoom_level=7
 max_zoom_max_x=$((2**max_zoom_level-1))
 
 max_concurrent_jobs=${max_concurrent_jobs:-1}
