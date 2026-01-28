@@ -14,6 +14,7 @@ backcountry
 backrest
 barrier
 bbq
+beauty
 bench
 bicycle
 bicycle_parking
@@ -58,6 +59,7 @@ education
 ele
 electric_bicycle
 electrified
+elevator
 embankment
 emergency
 entrance
@@ -83,9 +85,11 @@ golf
 golf_cart
 government
 group_only
+hairdresser
 hand_cart
 handrail
 healthcare
+healthcare:speciality
 height
 hgv
 highest_point
@@ -139,6 +143,7 @@ max_age
 maxheight
 maxspeed
 maxwidth
+microbrewery
 military
 mimics
 min_age
@@ -187,6 +192,7 @@ ramp:luggage
 ramp:stroller
 ramp:wheelchair
 rapids
+recycling_type
 ref
 religion
 reservation
@@ -196,6 +202,7 @@ route
 sailboat
 sanitary_dump_station
 seasonal
+second_hand
 service
 shelter
 ship
@@ -209,6 +216,7 @@ smoothness
 snowmobile
 species
 sport
+stairs
 static_caravans
 steps
 stroller
