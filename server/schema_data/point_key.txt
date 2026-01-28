@@ -48,6 +48,7 @@ cutting
 cycleway
 denomination
 dinner
+diplomatic
 direction
 dish_washing
 distance
@@ -80,6 +81,7 @@ generator:type
 genus
 golf
 golf_cart
+government
 group_only
 hand_cart
 handrail
