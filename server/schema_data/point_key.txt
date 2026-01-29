@@ -252,6 +252,7 @@ unisex
 usage
 utility
 vehicle
+vending
 voltage
 washing_machine
 water
