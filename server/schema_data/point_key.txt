@@ -4,6 +4,7 @@ advertising
 aerialway
 aerodrome
 aeroway
+alcohol
 allotments
 amenity
 area:highway
@@ -71,6 +72,7 @@ fireplace
 fishing
 fitness_station
 flood_prone
+food
 foot
 footway
 ford
