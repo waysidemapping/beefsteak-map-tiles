@@ -389,7 +389,7 @@ if ! pgrep -x varnishd >/dev/null 2>&1; then
         -n "$VARNISH_WORKING_DIR" \
         -T 127.0.0.1:6082 \
         -S "$VARNISH_ETC_DIR/secret" \
-        -a :80 \
+        -a :6081 \
         -f "$VARNISH_CONFIG_FILE" \
         -s "malloc,${VARNISH_CACHE_RAM_GB}G"
     echo "Varnish started."
