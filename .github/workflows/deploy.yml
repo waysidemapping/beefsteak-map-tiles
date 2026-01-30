@@ -24,13 +24,14 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demo
     steps:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Setup Pages
         uses: actions/configure-pages@v5
-      - name: cd into demo dir
-        run: cd demo
       - name: Install
         run: npm install
       - name: Build
