@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           # Upload entire repository
-          path: '.'
+          path: 'demo'
 
   # Deployment job
   deploy:
