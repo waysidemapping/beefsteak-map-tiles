@@ -30,6 +30,10 @@ Beefsteak map tiles aren't for everyone. If you don't need Beefsteak's power and
 - [Shortbread](https://shortbread-tiles.org/): If you're looking for a lean, general-purpose tile schema supported on openstreetmap.org, try Shortbread. Shortbread also supports minutely updates.
 - [Planetiler](https://github.com/onthegomap/planetiler) or [Tippecanoe](https://github.com/felt/tippecanoe): If you want to roll your own static vector tiles.
 
+## 🥄 Taste test
+
+Ready to see Beefsteak in action? Check out the [demo site](https://beefsteak.waysidemapping.org) displaying production tiles.
+
 ## 🍔 Stack
 
 Beefsteak strives to have minimal dependencies. It is built atop the following open source projects:
@@ -147,10 +151,6 @@ To run a custom SQL query in the database (useful for debugging), run:
 ```
 docker exec -i beefsteak-dev-container sudo -u postgres psql -U postgres -d osm -c "yourquery"
 ```
-
-### SQL guidelines
-
-Minutely tiles can't be cached for very long, so lightning-fast renders are critical. Beefsteak has a highly optimized SQL query that goes without luxuries like recursion, `UNION`, `ST_SimplifyPreserveTopology`, and `ST_Union`.
 
 ## 🚴 Deploying Beefsteak
 
