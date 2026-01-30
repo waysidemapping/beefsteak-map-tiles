@@ -30,7 +30,7 @@ Beefsteak map tiles aren't for everyone. If you don't need Beefsteak's power and
 - [Shortbread](https://shortbread-tiles.org/): If you're looking for a lean, general-purpose tile schema supported on openstreetmap.org, try Shortbread. Shortbread also supports minutely updates.
 - [Planetiler](https://github.com/onthegomap/planetiler) or [Tippecanoe](https://github.com/felt/tippecanoe): If you want to roll your own static vector tiles.
 
-## 🥄 Taste test
+### 🥄 Taste test
 
 Ready to see Beefsteak in action? Check out the [demo site](https://beefsteak.waysidemapping.org) displaying production tiles.
 
