@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-BASE_URL="http://127.0.0.1/beefsteak"
+BASE_URL="http://127.0.0.1:6081/beefsteak"
 
 VARNISHADM="/usr/local/varnish/bin/varnishadm"
 ADMIN_ADDR="127.0.0.1:6082"
