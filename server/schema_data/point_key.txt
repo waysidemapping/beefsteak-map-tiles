@@ -99,6 +99,7 @@ highway
 hiking
 horse
 hot_water
+house
 hov
 hunting
 iata
