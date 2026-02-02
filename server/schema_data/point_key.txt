@@ -231,6 +231,7 @@ surface
 swimming
 swimming_pool
 tactile_paving
+takeaway
 taxi
 telecom
 tents
