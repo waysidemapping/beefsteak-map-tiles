@@ -163,6 +163,7 @@ mtb
 mtb:scale
 mtb:scale:imba
 mtb:scale:uphill
+museum
 name
 natural
 network
