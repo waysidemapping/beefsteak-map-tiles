@@ -83,7 +83,6 @@ handrail
 healthcare
 height
 hgv
-highest_point
 highway
 hiking
 horse
@@ -168,7 +167,6 @@ portage
 power
 power_supply
 private
-prominence
 protect_class
 protected_area
 protection_title
