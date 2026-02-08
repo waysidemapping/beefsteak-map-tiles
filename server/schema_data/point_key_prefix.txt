@@ -3,6 +3,7 @@ currency:
 diet:
 drink:
 fuel:
+massif:name:
 monitoring:
 name:
 payment:

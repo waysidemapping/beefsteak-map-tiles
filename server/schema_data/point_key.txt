@@ -141,6 +141,7 @@ man_made
 manufacturer
 maritime
 mascot
+massif:name
 material
 max_age
 maxheight
