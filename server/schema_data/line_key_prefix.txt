@@ -1,6 +1,5 @@
 bridge:name:
 from:
-lock_name:
 mtb:name:
 name:
 oneway:

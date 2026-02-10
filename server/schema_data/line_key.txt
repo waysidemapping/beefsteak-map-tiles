@@ -60,8 +60,6 @@ light_rail
 lit
 location
 lock
-lock_name
-lock_ref
 male
 man_made
 maritime
