@@ -27,6 +27,7 @@ building
 building:colour
 building:levels
 building:part
+building:parts
 bus
 cabins
 cables

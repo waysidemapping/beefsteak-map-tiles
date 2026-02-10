@@ -127,7 +127,11 @@ AS $$
           AND %1$L >= 14
       UNION ALL
         SELECT * FROM areas
-        WHERE tags ?| ARRAY['area:highway', 'building:part', 'indoor', 'playground']
+        WHERE tags ? 'building:part'
+          AND %1$L >= 16
+      UNION ALL
+        SELECT * FROM areas
+        WHERE tags ?| ARRAY['area:highway', 'indoor', 'playground']
           AND %1$L >= 18
       UNION ALL
         SELECT * FROM areas
