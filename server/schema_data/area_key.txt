@@ -24,6 +24,7 @@ brand
 breakfast
 bridge
 building
+building:colour
 building:levels
 building:part
 bus
@@ -118,6 +119,7 @@ leaf_type
 leisure
 length
 level
+light:colour
 light_rail
 lit
 location
@@ -136,6 +138,7 @@ maxwidth
 military
 mimics
 min_age
+min_height
 minspeed
 model
 mofa
@@ -182,6 +185,7 @@ religion
 reservation
 residential
 roof:colour
+roof:levels
 route
 sailboat
 sanitary_dump_station

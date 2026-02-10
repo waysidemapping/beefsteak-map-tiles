@@ -131,6 +131,7 @@ leaf_type
 leisure
 length
 level
+light:colour
 light_rail
 lit
 location
