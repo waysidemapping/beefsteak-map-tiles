@@ -61,7 +61,7 @@ function processIncomingBeefsteakTile(tile) {
 
       } else if (allRelationKeysCount) { // non-relation
         // Based on relation memberships in the form `m.{relation_id}={member_role}`,
-        // add the relation tags to the feature in the form `r.{relation_key}=┃{relation1_value}┃{relation2_value}┃`
+        // add the relation tags to the feature in the form `r.{relation_key}={relation1_value}┃{relation2_value}`
 
         const linkedRelations = [];
         for (let i = 0; i < featureKeys.length; i+=1) {
@@ -81,13 +81,14 @@ function processIncomingBeefsteakTile(tile) {
 
           for (let i = 0; i < allRelationKeysCount; i+=1) {
             const key = allRelationKeys[i];
-            let out = '┃';
+            let out = '';
             let hasValue = false;
 
             for (let j = 0; j < linkedRelationsCount; j+=1) {
               const value = linkedRelations[j].properties[key];
               if (value != null && value !== '') hasValue = true;
-              out += (value ?? '') + '┃';
+              if (j !== 0) out += '┃';
+              out += (value ?? '');
             }
 
             // only add the property if at least one of the relations has a value
