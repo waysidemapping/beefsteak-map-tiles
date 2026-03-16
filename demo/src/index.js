@@ -33,6 +33,9 @@ window.addEventListener('load', async function () {
       visualizePitch: true
     }))
     .addControl(new maplibregl.GeolocateControl({
+        fitBoundsOptions: {
+          animate: false
+        },
         positionOptions: {
             enableHighAccuracy: true
         },
