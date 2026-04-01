@@ -9,10 +9,13 @@ const port = 3366;
 http.createServer(function (request, response) {
     try {
      
-        let requestUrl = url.parse(request.url)
+        const url = new URL(request.url, 'http://localhost');
+        const safePath = path.normalize(url.pathname);
+        let fsPath = path.join(baseDirectory, safePath);
 
-        // need to use path.normalize so people can't access directories underneath baseDirectory
-        let fsPath = baseDirectory + path.normalize(requestUrl.pathname)
+        if (!fsPath.startsWith(path.join(baseDirectory))) {
+          throw new Error('Invalid path');
+        }
 
         if (fs.statSync(fsPath).isDirectory()) {
           if (!fsPath.endsWith("/")) fsPath += "/";
