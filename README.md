@@ -129,7 +129,7 @@ docker build -t beefsteak-tileserver:latest -f Dockerfile .
 To create and start a container using the Docker image, run: 
 
 ```
-docker run --name beefsteak-dev-container -p 3000:3000 -p 3001:80 --mount type=bind,src=./server,dst=/usr/src/app --mount type=bind,src=./tmp,dst=/var/lib/app beefsteak-tileserver:latest
+docker run --name beefsteak-dev-container -p 3000:3000 -p 6081:6081 --mount type=bind,src=./server,dst=/usr/src/app --mount type=bind,src=./tmp,dst=/var/lib/app beefsteak-tileserver:latest
 ```
 
 The first `--mount` is required to copy over the `/server` directory to the container. Any changes to these files will be immediately synced between the host and the container. The second `--mount` is optional but is convenient for managing intermediate files (which may be quite large) on the host system.
