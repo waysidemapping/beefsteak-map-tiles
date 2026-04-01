@@ -112,7 +112,7 @@ You can test that Martin is running. This should give you `HTTP/1.1 200 OK`:
 curl -I http://127.0.0.1:3000/beefsteak
 ```
 
-However, this should not be directly accessible externaly. This should fail:
+However, this should not be directly accessible externally. This should fail:
 
 ```
 curl -I http://your.servers.ip.address:3000/beefsteak
