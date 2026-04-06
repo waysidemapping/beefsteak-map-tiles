@@ -8,6 +8,10 @@ window.addEventListener('load', async function () {
 
   const styleJson = await fetch('/style/beefsteak-demo-style.json').then(response => response.json());
 
+  if (styleJson.sprite.startsWith('/')) {
+    styleJson.sprite = window.location.origin + styleJson.sprite;
+  }
+
   map = new maplibregl.Map({
     container: 'map',
     style: styleJson,
