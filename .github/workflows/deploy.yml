@@ -32,6 +32,11 @@ jobs:
         uses: actions/checkout@v6
       - name: Setup Pages
         uses: actions/configure-pages@v6
+      - name: Install spreet
+        uses: jaxxstorm/action-install-gh-release@v1
+        with:
+          repo: flother/spreet
+          tag: v0.13.1
       - name: Install
         run: npm install
       - name: Build
