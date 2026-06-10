@@ -183,34 +183,13 @@ public class Lines implements FeatureProcessor, LayerPostProcessor {
     List<Feature> result = new ArrayList<>();
     if (zoom < 12) {
       for (Feature feature : items) {
-        Set<String> relevantRelationKeys = new HashSet<>();
-        var wayId = feature.id() / 10; // strip OSM type digit
-        var routeMemberships = relationIndex.routeMembershipsByWayId.get(wayId);
-        if (routeMemberships != null) {
-          for (Membership membership : routeMemberships) {
-            var minZoomForRelation = relationIndex.minZoomForRelationId(membership.relationId());
-            if (minZoomForRelation != null && minZoomForRelation <= zoom) {
-              relevantRelationKeys.add("m." + membership.relationId());    
-            }
-          }
-        }
-        var waterwayMemberships = relationIndex.waterwayMembershipsByWayId.get(wayId);
-        if (waterwayMemberships != null) {
-          for (Membership membership : waterwayMemberships) {
-            if ("main_stream".equals(membership.role())) {
-              var minZoomForRelation = relationIndex.minZoomForRelationId(membership.relationId());
-              if (minZoomForRelation != null && minZoomForRelation <= zoom) {
-                relevantRelationKeys.add("m." + membership.relationId());    
-              }
-            }
-          }
-        }
+        var relevantRelationKeys = getRelevantRelationKeys(zoom, feature);
         if (relevantRelationKeys.size() > 0) {
           result.add(new Feature(
             feature.layer(),
             feature.id(),
             feature.geometry(),
-            filterTags(feature.tags(), relevantRelationKeys),
+            filterTagsForLowZoom(feature.tags(), relevantRelationKeys),
             feature.group()
           ));
         }
@@ -219,12 +198,45 @@ public class Lines implements FeatureProcessor, LayerPostProcessor {
     }
 
     for (Feature feature : items) {
-      if (minZoomForPostProcess(feature) <= zoom) {
-        result.add(feature);
+      var relevantRelationKeys = getRelevantRelationKeys(zoom, feature);
+      if (relevantRelationKeys.size() > 0 || minZoomForPostProcess(feature) <= zoom) {
+        result.add(new Feature(
+          feature.layer(),
+          feature.id(),
+          feature.geometry(),
+          filterTagsForHighZoom(feature.tags(), relevantRelationKeys),
+          feature.group()
+        ));
       }
     }
 
     return result;
+  }
+
+  private  Set<String> getRelevantRelationKeys(int zoom, Feature feature) {
+    Set<String> relevantRelationKeys = new HashSet<>();
+    var wayId = feature.id() / 10; // strip OSM type digit
+    var routeMemberships = relationIndex.routeMembershipsByWayId.get(wayId);
+    if (routeMemberships != null) {
+      for (Membership membership : routeMemberships) {
+        var minZoomForRelation = relationIndex.minZoomForRelationId(membership.relationId());
+        if (minZoomForRelation != null && minZoomForRelation <= zoom) {
+          relevantRelationKeys.add("m." + membership.relationId());    
+        }
+      }
+    }
+    var waterwayMemberships = relationIndex.waterwayMembershipsByWayId.get(wayId);
+    if (waterwayMemberships != null) {
+      for (Membership membership : waterwayMemberships) {
+        if ("main_stream".equals(membership.role())) {
+          var minZoomForRelation = relationIndex.minZoomForRelationId(membership.relationId());
+          if (minZoomForRelation != null && minZoomForRelation <= zoom) {
+            relevantRelationKeys.add("m." + membership.relationId());    
+          }
+        }
+      }
+    }
+    return relevantRelationKeys;
   }
 
   private long minZoomForPostProcess(Feature feature) {
@@ -241,10 +253,21 @@ public class Lines implements FeatureProcessor, LayerPostProcessor {
     return 12;
   }
 
-  private Map<String, Object> filterTags(Map<String, Object> tags, Set<String> keepRelationKeys) {
+  private Map<String, Object> filterTagsForLowZoom(Map<String, Object> tags, Set<String> keepRelationKeys) {
     Map<String, Object> filteredTags = new HashMap<>();
     for (String key : tags.keySet()) {
       if (config.lowZoomLineKeys().contains(key) ||
+        keepRelationKeys.contains(key)) {
+        filteredTags.put(key, tags.get(key));
+      }
+    }
+    return filteredTags;
+  }
+
+  private Map<String, Object> filterTagsForHighZoom(Map<String, Object> tags, Set<String> keepRelationKeys) {
+    Map<String, Object> filteredTags = new HashMap<>();
+    for (String key : tags.keySet()) {
+      if (!key.startsWith("m.") ||
         keepRelationKeys.contains(key)) {
         filteredTags.put(key, tags.get(key));
       }
