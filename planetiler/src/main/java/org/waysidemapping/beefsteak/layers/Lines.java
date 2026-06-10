@@ -1,13 +1,26 @@
 package org.waysidemapping.beefsteak.layers;
 
+import com.carrotsearch.hppc.LongObjectHashMap;
 import com.onthegomap.planetiler.FeatureCollector;
+import com.onthegomap.planetiler.FeatureMerge;
 import com.onthegomap.planetiler.ForwardingProfile.FeatureProcessor;
+import com.onthegomap.planetiler.ForwardingProfile.LayerPostProcessor;
+import com.onthegomap.planetiler.VectorTile.Feature;
+import com.onthegomap.planetiler.geo.GeometryException;
 import com.onthegomap.planetiler.reader.SourceFeature;
+
 import org.waysidemapping.beefsteak.util.RelationMembershipIndex;
+import org.waysidemapping.beefsteak.util.RelationMembershipIndex.Membership;
 import org.waysidemapping.beefsteak.Config;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-public class Lines implements FeatureProcessor {
+public class Lines implements FeatureProcessor, LayerPostProcessor {
 
   private final Config config;
   private final RelationMembershipIndex relationIndex;
@@ -64,33 +77,27 @@ public class Lines implements FeatureProcessor {
         return true;
       }
     }
+
+    if (relationIndex.routeMembershipsByWayId.containsKey(sf.id()) ||
+      relationIndex.waterwayMembershipsByWayId.containsKey(sf.id()) ||
+      relationIndex.adminBoundaryMembershipsByWayId.containsKey(sf.id()) ||
+      relationIndex.nonAdminBoundaryMembershipsByWayId.containsKey(sf.id())) {
+      return true;
+    }
     
     return false;
   }
 
   private int minZoom(SourceFeature sf) {
-
-    if (sf.hasTag("highway")) {
-      String highway = sf.getString("highway");
-      if (roadHighwayTagValues.contains(highway)) {
-        return 12;
-      }
-      if (!"footway".equals(highway) || !sf.hasTag("footway")) {
-        return 13;
-      }
-      return 15;
-    }
-
     if (sf.hasTag("golf")) {
       return 15;
     }
-
     if (sf.hasTag("indoor")) {
       return 18;
     }
-
-    return 12;
+    return 3;
   }
+
   @Override
   public void processFeature(
     SourceFeature sf,
@@ -101,16 +108,46 @@ public class Lines implements FeatureProcessor {
       return;
     }
 
-    var line = features.line("line");
+    if (relationIndex.routeMembershipsByWayId.containsKey(sf.id()) ||
+      relationIndex.waterwayMembershipsByWayId.containsKey(sf.id())) {
+      try {
+        var wayBbox = sf.worldGeometry().getEnvelopeInternal();
+        var memberships = relationIndex.routeMembershipsByWayId.get(sf.id());
+        if (memberships != null) {
+          for (var membership : memberships) {
+            relationIndex.expandRelationBbox(membership.relationId(), wayBbox);
+          }
+        }
+        memberships = relationIndex.waterwayMembershipsByWayId.get(sf.id());
+        if (memberships != null) {
+          for (var membership : memberships) {
+            relationIndex.expandRelationBbox(membership.relationId(), wayBbox);
+          }
+        }
+      } catch (GeometryException e) {
+        // ignore
+      }
+    }
 
+    var line = features.line("line");
+    line.setMinPixelSize(0);
     line.setMinZoom(minZoom(sf));
     copyTags(sf, line);
+    copyRelationMemberships(sf, line, relationIndex.routeMembershipsByWayId);
+    copyRelationMemberships(sf, line, relationIndex.waterwayMembershipsByWayId);
+    copyRelationMemberships(sf, line, relationIndex.adminBoundaryMembershipsByWayId);
+    copyRelationMemberships(sf, line, relationIndex.nonAdminBoundaryMembershipsByWayId);
+  }
 
-    var rels = relationIndex.membershipsByWayId.get(sf.id());
-
+  private void copyRelationMemberships(
+    SourceFeature sf,
+    FeatureCollector.Feature feature,
+    LongObjectHashMap<List<Membership>> membershipsByWayId
+  ) {
+    var rels = membershipsByWayId.get(sf.id());
     if (rels != null) {
       for (var rel : rels) {
-        line.setAttr(
+        feature.setAttr(
           "m." + rel.relationId(),
           rel.role()
         );
@@ -138,6 +175,86 @@ public class Lines implements FeatureProcessor {
       }
     }
     return false;
+  }
+
+  @Override
+  public List<Feature> postProcess(int zoom, List<Feature> items) throws GeometryException {
+    
+    List<Feature> result = new ArrayList<>();
+    if (zoom < 12) {
+      for (Feature feature : items) {
+        Set<String> relevantRelationKeys = new HashSet<>();
+        var wayId = feature.id() / 10; // strip OSM type digit
+        var routeMemberships = relationIndex.routeMembershipsByWayId.get(wayId);
+        if (routeMemberships != null) {
+          for (Membership membership : routeMemberships) {
+            var minZoomForRelation = relationIndex.minZoomForRelationId(membership.relationId());
+            if (minZoomForRelation != null && minZoomForRelation <= zoom) {
+              relevantRelationKeys.add("m." + membership.relationId());    
+            }
+          }
+        }
+        var waterwayMemberships = relationIndex.waterwayMembershipsByWayId.get(wayId);
+        if (waterwayMemberships != null) {
+          for (Membership membership : waterwayMemberships) {
+            if ("main_stream".equals(membership.role())) {
+              var minZoomForRelation = relationIndex.minZoomForRelationId(membership.relationId());
+              if (minZoomForRelation != null && minZoomForRelation <= zoom) {
+                relevantRelationKeys.add("m." + membership.relationId());    
+              }
+            }
+          }
+        }
+        if (relevantRelationKeys.size() > 0) {
+          result.add(new Feature(
+            feature.layer(),
+            feature.id(),
+            feature.geometry(),
+            filterTags(feature.tags(), relevantRelationKeys),
+            feature.group()
+          ));
+        }
+      }
+      return FeatureMerge.mergeLineStrings(result, 0.5, 0.5, 4, true);
+    }
+
+    for (Feature feature : items) {
+      if (minZoomForPostProcess(feature) <= zoom) {
+        result.add(feature);
+      }
+    }
+
+    return result;
+  }
+
+  private long minZoomForPostProcess(Feature feature) {
+    if (feature.hasTag("highway")) {
+      String highway = feature.getString("highway");
+      if (roadHighwayTagValues.contains(highway)) {
+        return 12;
+      }
+      if (!"footway".equals(highway) || !feature.hasTag("footway")) {
+        return 13;
+      }
+      return 15;
+    }
+    return 12;
+  }
+
+  private Map<String, Object> filterTags(Map<String, Object> tags, Set<String> keepRelationKeys) {
+    Map<String, Object> filteredTags = new HashMap<>();
+    for (String key : tags.keySet()) {
+      if (config.lowZoomLineKeys().contains(key) ||
+        keepRelationKeys.contains(key)) {
+        filteredTags.put(key, tags.get(key));
+      }
+    }
+    return filteredTags;
+  }
+
+  @Override
+  public String name() {
+    return "line";
   }
 
 }

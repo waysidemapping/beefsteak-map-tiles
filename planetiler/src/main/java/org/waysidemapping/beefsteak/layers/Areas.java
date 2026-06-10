@@ -143,25 +143,27 @@ public class Areas implements FeatureProcessor, LayerPostProcessor {
     if (zoom < 12) {
       List<Feature> itemsWithFilteredTags = new ArrayList<>(items.size());
       for (Feature feature : items) {
-        Map<String, Object> filteredTags = new HashMap<>();
-
-        for (String key : config.lowZoomAreaKeys()) {
-          Object value = feature.tags().get(key);
-          if (value != null) {
-            filteredTags.put(key, value);
-          }
-        }
         itemsWithFilteredTags.add(new Feature(
           feature.layer(),
           feature.id(),
           feature.geometry(),
-          filteredTags,
+          filterTags(feature.tags()),
           feature.group()
         ));
       }
       return FeatureMerge.mergeMultiPolygon(itemsWithFilteredTags);
     }
     return items;
+  }
+
+  private Map<String, Object> filterTags(Map<String, Object> tags) {
+    Map<String, Object> filteredTags = new HashMap<>();
+    for (String key : tags.keySet()) {
+      if (config.lowZoomAreaKeys().contains(key)) {
+        filteredTags.put(key, tags.get(key));
+      }
+    }
+    return filteredTags;
   }
 
   @Override

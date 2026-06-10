@@ -1,7 +1,6 @@
 package org.waysidemapping.beefsteak.layers;
 
 import com.onthegomap.planetiler.FeatureCollector;
-import com.onthegomap.planetiler.FeatureCollector.Feature;
 import com.onthegomap.planetiler.ForwardingProfile.FeatureProcessor;
 import com.onthegomap.planetiler.geo.GeometryException;
 import com.onthegomap.planetiler.reader.SourceFeature;
@@ -98,7 +97,7 @@ public class Points implements FeatureProcessor {
       return;
     }
 
-    Feature point = null;
+    FeatureCollector.Feature point = null;
 
     if (sf instanceof OsmSourceFeature osmSourceFeature &&
         osmSourceFeature.originalElement().type() == OsmElement.Type.RELATION &&
