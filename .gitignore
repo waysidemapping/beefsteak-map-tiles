@@ -1,3 +1,6 @@
 tmp
 dist
 demo/style/sprites/demo*
+planetiler/data
+planetiler/target
+*.pmtiles
